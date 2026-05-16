@@ -39,20 +39,20 @@ export function AuthProvider({ children }) {
       setCurrentUser(user);
 
       try {
-        // First user ever → bootstrap as superAdmin
-        const isFirst = await DB.isFirstUser();
-        if (isFirst) {
-          await DB.createFirstUser(user.uid, user.displayName || user.email.split('@')[0]);
-          const snap = await getDoc(doc(db, 'users', user.uid));
-          setUserDoc({ id: user.uid, ...snap.data() });
+        // Check for existing user doc first
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) {
+          setUserDoc({ id: user.uid, ...userSnap.data() });
           setAuthState('approved');
           return;
         }
 
-        // Check for existing approved user doc
-        const userSnap = await getDoc(doc(db, 'users', user.uid));
-        if (userSnap.exists()) {
-          setUserDoc({ id: user.uid, ...userSnap.data() });
+        // No user doc — if no superAdmin exists yet, this person becomes superAdmin
+        const adminExists = await DB.hasSuperAdmin();
+        if (!adminExists) {
+          await DB.createFirstUser(user.uid, user.displayName || user.email.split('@')[0]);
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          setUserDoc({ id: user.uid, ...snap.data() });
           setAuthState('approved');
           return;
         }

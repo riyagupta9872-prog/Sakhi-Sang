@@ -1,7 +1,7 @@
 import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, writeBatch, serverTimestamp, increment,
-  onSnapshot, Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './config';
 import { toLocalDateStr, snapToSunday, shiftDate, chunkArray, tsToISO } from '../utils/helpers';
@@ -233,9 +233,7 @@ export const DB = {
             if (mode === 'upsert') {
               batch.update(doc(db, 'devotees', dup.id), { ...data, updatedAt: serverTimestamp() });
               updated++;
-            } else {
-              skipped++;
-            }
+            } else { skipped++; }
           } else {
             batch.set(doc(collection(db, 'devotees')), {
               ...data, isActive: true, lifetimeAttendance: data.priorSessions || 0,
@@ -310,9 +308,13 @@ export const DB = {
 
     const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
     const presentMap = {};
-    attSnap.docs.forEach(d => { presentMap[d.data().devotee_id] = d.data().marked_at || null; });
+    attSnap.docs.forEach(d => { presentMap[d.data().devotee_id] = d.data().marked_at_client || null; });
 
-    return list.map(d => toSnake({ ...d, markedAt: presentMap[d.id] || null, isPresent: !!presentMap[d.id] }));
+    return list.map(d => ({
+      ...toSnake(d),
+      marked_at_client: presentMap[d.id] || null,
+      is_present: !!presentMap[d.id],
+    }));
   },
 
   async markPresent(sessionId, devotee, isNewDevotee = false) {
@@ -362,7 +364,7 @@ export const DB = {
   },
 
   async getSheetData(yearStart, yearEnd) {
-    const [sessSnap, devSnap, attSnap, csSnap] = await Promise.all([
+    const [sessSnap, devList, attSnap, csSnap] = await Promise.all([
       getDocs(query(collection(db, 'sessions'), where('session_date', '>=', yearStart), where('session_date', '<=', yearEnd), orderBy('session_date'))),
       getCache(),
       getDocs(query(collection(db, 'attendanceRecords'))),
@@ -381,7 +383,7 @@ export const DB = {
       if (!csMap[dat.week_date]) csMap[dat.week_date] = {};
       csMap[dat.week_date][dat.devotee_id] = dat.coming_status || dat.comingStatus || '';
     });
-    return { sessions, devotees: devSnap.map(toSnake), attMap, csMap };
+    return { sessions, devotees: devList.map(toSnake), attMap, csMap };
   },
 
   // ── Calling status ──────────────────────────────────────────────────────────
@@ -394,16 +396,6 @@ export const DB = {
     await setDoc(doc(db, 'settings', 'callingWeekConfig'), {
       callingDate, sessionDate, ...extra, updatedAt: serverTimestamp(),
     }, { merge: true });
-  },
-
-  async getCallingStatus(weekDate, userId, userTeam, userRole) {
-    let q = query(collection(db, 'callingStatus'), where('week_date', '==', weekDate));
-    const snap = await getDocs(q);
-    let list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (userRole !== 'superAdmin') {
-      list = list.filter(d => d.calling_by === (d.callingBy || '') || true);
-    }
-    return list;
   },
 
   async getTeamCallingStatus(weekDate, userRole, userTeam) {
@@ -467,10 +459,10 @@ export const DB = {
     return snap.exists() ? snap.data() : null;
   },
 
-  async getCallingReport(weekDate, sessionDateOverride) {
+  async getCallingReport(weekDate) {
     const csSnap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate)));
     const subSnap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate)));
-    const sessionDate = sessionDateOverride || shiftDate(weekDate, 1);
+    const sessionDate = shiftDate(weekDate, 1);
     const sessSnap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sessionDate)));
     const sessionId = sessSnap.empty ? null : sessSnap.docs[0].id;
     const attSet = new Set();
@@ -500,10 +492,9 @@ export const DB = {
   async getCallingHistoryGrid(teamFilter, callerFilter) {
     const today = toLocalDateStr();
     const weeks = [];
-    let cur = snapToSunday(today);
+    let cur = shiftDate(snapToSunday(today), -1);
     for (let i = 0; i < 4; i++) {
-      const sat = shiftDate(cur, -1);
-      weeks.unshift(sat);
+      weeks.unshift(cur);
       cur = shiftDate(cur, -7);
     }
     const devotees = await this.getDevotees({ team: teamFilter, callingBy: callerFilter });
@@ -521,18 +512,12 @@ export const DB = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
-  async getCallingWeeksList() {
-    const snap = await getDocs(query(collection(db, 'callingSubmissions'), orderBy('week_date', 'desc'), limit(20)));
-    const weeks = [...new Set(snap.docs.map(d => d.data().week_date || d.data().weekDate))];
-    return weeks.sort().reverse();
-  },
-
   async getSubmissionReport() {
     const today = toLocalDateStr();
     const weeks = [];
-    let cur = snapToSunday(today);
+    let cur = shiftDate(snapToSunday(today), -1);
     for (let i = 0; i < 4; i++) {
-      weeks.unshift(shiftDate(cur, -1));
+      weeks.unshift(cur);
       cur = shiftDate(cur, -7);
     }
     const submMap = await this.getCallingSubmissions(weeks);
@@ -563,7 +548,7 @@ export const DB = {
   },
 
   // ── Care ───────────────────────────────────────────────────────────────────
-  async getCareAbsent(anchorDate) {
+  async getCareAbsent() {
     const sessions = await this.getSessions();
     if (sessions.length < 2) return { absentThisWeek: [], absentPast2Weeks: [] };
     const [s1, s2] = sessions;
@@ -675,10 +660,10 @@ export const DB = {
   async addBookDistribution(data) {
     await addDoc(collection(db, 'bookDistributions'), { ...data, createdAt: serverTimestamp() });
   },
-
   async getBookDistributions({ startDate, endDate } = {}) {
-    let q = collection(db, 'bookDistributions');
-    if (startDate && endDate) q = query(q, where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'));
+    let q = startDate && endDate
+      ? query(collection(db, 'bookDistributions'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
+      : query(collection(db, 'bookDistributions'), orderBy('date', 'desc'), limit(50));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
@@ -686,10 +671,10 @@ export const DB = {
   async addDonation(data) {
     await addDoc(collection(db, 'donations'), { ...data, createdAt: serverTimestamp() });
   },
-
   async getDonations({ startDate, endDate } = {}) {
-    let q = collection(db, 'donations');
-    if (startDate && endDate) q = query(q, where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'));
+    let q = startDate && endDate
+      ? query(collection(db, 'donations'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
+      : query(collection(db, 'donations'), orderBy('date', 'desc'), limit(50));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
@@ -697,10 +682,10 @@ export const DB = {
   async addRegistration(data) {
     await addDoc(collection(db, 'registrations'), { ...data, createdAt: serverTimestamp() });
   },
-
   async getRegistrations({ startDate, endDate } = {}) {
-    let q = collection(db, 'registrations');
-    if (startDate && endDate) q = query(q, where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'));
+    let q = startDate && endDate
+      ? query(collection(db, 'registrations'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
+      : query(collection(db, 'registrations'), orderBy('date', 'desc'), limit(50));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
@@ -708,10 +693,10 @@ export const DB = {
   async addService(data) {
     await addDoc(collection(db, 'services'), { ...data, createdAt: serverTimestamp() });
   },
-
   async getServices({ startDate, endDate } = {}) {
-    let q = collection(db, 'services');
-    if (startDate && endDate) q = query(q, where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'));
+    let q = startDate && endDate
+      ? query(collection(db, 'services'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
+      : query(collection(db, 'services'), orderBy('date', 'desc'), limit(50));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
@@ -732,6 +717,22 @@ export const DB = {
     return team ? all.filter(u => (u.teamName || u.team_name || '') === team) : all;
   },
 
+  // ── KEY FIX: check if ANY superAdmin exists, not just if users collection is empty ──
+  async hasSuperAdmin() {
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'superAdmin'), limit(1)));
+    return !snap.empty;
+  },
+
+  async createFirstUser(uid, displayName) {
+    await setDoc(doc(db, 'users', uid), {
+      role: 'superAdmin',
+      displayName,
+      teamName: '',
+      isActive: true,
+      createdAt: serverTimestamp(),
+    });
+  },
+
   async getPendingSignups() {
     const snap = await getDocs(query(collection(db, 'signupRequests'), where('status', '==', 'pending')));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -744,17 +745,6 @@ export const DB = {
 
   async rejectSignupRequest(requestId) {
     await updateDoc(doc(db, 'signupRequests', requestId), { status: 'rejected', updatedAt: serverTimestamp() });
-  },
-
-  async isFirstUser() {
-    const snap = await getDocs(query(collection(db, 'users'), limit(1)));
-    return snap.empty;
-  },
-
-  async createFirstUser(uid, displayName) {
-    await setDoc(doc(db, 'users', uid), {
-      role: 'superAdmin', displayName, teamName: '', isActive: true, createdAt: serverTimestamp(),
-    });
   },
 
   async createSignupRequest(uid, displayName, email) {
@@ -801,7 +791,7 @@ export const DB = {
     await setDoc(doc(db, 'settings', 'attendanceTargets'), { type, teams, global, updatedAt: serverTimestamp() });
   },
 
-  async setDevoteeCallingMode(devoteeId, mode, changedBy = '') {
+  async setDevoteeCallingMode(devoteeId, mode) {
     const updates = { callingMode: mode, updatedAt: serverTimestamp() };
     if (mode === 'not_interested') { updates.callingBy = ''; updates.teamName = ''; }
     else if (mode === 'online' || mode === 'festival') updates.callingBy = '';
@@ -824,7 +814,6 @@ export const DB = {
     const csMap = {};
     csSnap.docs.forEach(d => { const dat = d.data(); csMap[dat.devotee_id || dat.devoteeId] = dat.coming_status || dat.comingStatus || ''; });
     const targetSnap = await this.getAttendanceTargets();
-
     const teams = {};
     devotees.forEach(d => {
       const t = d.team_name || 'Unknown';
@@ -833,22 +822,10 @@ export const DB = {
       if (csMap[d.id]) teams[t].callingList++;
       if (attSet.has(d.id)) teams[t].actualPresent++;
     });
-
     return Object.values(teams).map(t => {
       const target = targetSnap.teams?.[t.team] || targetSnap.global || 0;
       return { ...t, target, percentage: target ? Math.round((t.actualPresent / target) * 100) : 0 };
     });
-  },
-
-  async getCallingMgmtData(currentWeek) {
-    const devotees = await this.getDevotees({ status: 'active' });
-    const weeks = [];
-    let cur = currentWeek || shiftDate(snapToSunday(toLocalDateStr()), -1);
-    for (let i = 0; i < 4; i++) {
-      weeks.unshift(cur);
-      cur = shiftDate(cur, -7);
-    }
-    return { devotees, weeks };
   },
 
   async getMgmtSeparateLists() {
