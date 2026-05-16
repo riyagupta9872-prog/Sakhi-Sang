@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import {
-  getFirestore,
-  enableMultiTabIndexedDbPersistence,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   serverTimestamp,
   increment,
 } from 'firebase/firestore';
@@ -18,14 +19,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
 
-enableMultiTabIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Firestore persistence: multi-tab conflict, offline unavailable');
-  } else if (err.code === 'unimplemented') {
-    console.warn('Firestore persistence: not supported in this browser');
-  }
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 });
 
 export const TS = () => serverTimestamp();

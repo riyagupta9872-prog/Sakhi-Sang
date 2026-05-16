@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -18,12 +18,16 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userDoc, setUserDoc] = useState(null);
-  const [authState, setAuthState] = useState('loading'); // loading | auth | pending | approved | rejected
-  const [pendingUnsubscribe, setPendingUnsubscribe] = useState(null);
+  const [authState, setAuthState] = useState('loading');
+  const pendingUnsub = useRef(null); // ref — never stale in closures
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (pendingUnsubscribe) { pendingUnsubscribe(); setPendingUnsubscribe(null); }
+      // Cancel any active pending-approval listener
+      if (pendingUnsub.current) {
+        pendingUnsub.current();
+        pendingUnsub.current = null;
+      }
 
       if (!user) {
         setCurrentUser(null);
@@ -34,56 +38,80 @@ export function AuthProvider({ children }) {
 
       setCurrentUser(user);
 
-      // Check if first user ever
-      const isFirst = await DB.isFirstUser();
-      if (isFirst) {
-        await DB.createFirstUser(user.uid, user.displayName || user.email.split('@')[0]);
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        setUserDoc({ id: user.uid, ...snap.data() });
-        setAuthState('approved');
-        return;
-      }
-
-      // Check user doc
-      const snap = await getDoc(doc(db, 'users', user.uid));
-      if (snap.exists()) {
-        setUserDoc({ id: user.uid, ...snap.data() });
-        setAuthState('approved');
-        return;
-      }
-
-      // Check signup request
-      const reqSnap = await getDoc(doc(db, 'signupRequests', user.uid));
-      if (reqSnap.exists()) {
-        const status = reqSnap.data().status;
-        if (status === 'rejected') {
-          await signOut(auth);
-          setAuthState('rejected');
+      try {
+        // First user ever → bootstrap as superAdmin
+        const isFirst = await DB.isFirstUser();
+        if (isFirst) {
+          await DB.createFirstUser(user.uid, user.displayName || user.email.split('@')[0]);
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          setUserDoc({ id: user.uid, ...snap.data() });
+          setAuthState('approved');
           return;
         }
+
+        // Check for existing approved user doc
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) {
+          setUserDoc({ id: user.uid, ...userSnap.data() });
+          setAuthState('approved');
+          return;
+        }
+
+        // Check signup request status
+        const reqSnap = await getDoc(doc(db, 'signupRequests', user.uid));
+        if (reqSnap.exists()) {
+          const status = reqSnap.data().status;
+          if (status === 'rejected') {
+            await signOut(auth);
+            setAuthState('auth');
+            return;
+          }
+          // Pending — subscribe for approval
+          setAuthState('pending');
+          pendingUnsub.current = onSnapshot(doc(db, 'signupRequests', user.uid), async (s) => {
+            if (!s.exists()) return;
+            if (s.data().status === 'approved') {
+              const u2 = await getDoc(doc(db, 'users', user.uid));
+              if (u2.exists()) {
+                setUserDoc({ id: user.uid, ...u2.data() });
+                setAuthState('approved');
+              }
+            } else if (s.data().status === 'rejected') {
+              await signOut(auth);
+              setAuthState('auth');
+            }
+          });
+          return;
+        }
+
+        // No user doc and no request — create signup request
+        await DB.createSignupRequest(user.uid, user.displayName || user.email.split('@')[0], user.email);
         setAuthState('pending');
-        const unsubPending = onSnapshot(doc(db, 'signupRequests', user.uid), async (s) => {
+
+        // Subscribe to this new request
+        pendingUnsub.current = onSnapshot(doc(db, 'signupRequests', user.uid), async (s) => {
           if (!s.exists()) return;
           if (s.data().status === 'approved') {
-            const userSnap = await getDoc(doc(db, 'users', user.uid));
-            if (userSnap.exists()) {
-              setUserDoc({ id: user.uid, ...userSnap.data() });
+            const u2 = await getDoc(doc(db, 'users', user.uid));
+            if (u2.exists()) {
+              setUserDoc({ id: user.uid, ...u2.data() });
               setAuthState('approved');
             }
           } else if (s.data().status === 'rejected') {
             await signOut(auth);
-            setAuthState('rejected');
+            setAuthState('auth');
           }
         });
-        setPendingUnsubscribe(() => unsubPending);
-        return;
+      } catch (err) {
+        console.error('Auth init error:', err);
+        setAuthState('auth');
       }
-
-      // No user doc — create signup request
-      await DB.createSignupRequest(user.uid, user.displayName || user.email.split('@')[0], user.email);
-      setAuthState('pending');
     });
-    return unsub;
+
+    return () => {
+      unsub();
+      if (pendingUnsub.current) pendingUnsub.current();
+    };
   }, []);
 
   async function signup(email, password, displayName) {
@@ -97,6 +125,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
+    if (pendingUnsub.current) { pendingUnsub.current(); pendingUnsub.current = null; }
     await signOut(auth);
   }
 
