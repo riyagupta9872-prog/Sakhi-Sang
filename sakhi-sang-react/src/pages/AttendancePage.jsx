@@ -2,71 +2,59 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { DB } from '../firebase/db';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { avatarInitials, formatDate, isBirthdayThisWeek, attTimeStyle, getFYYears } from '../utils/helpers';
+import { avatarInitials, formatDate, isBirthdayThisWeek, attTimeStyle, getFYYears, toLocalDateStr, shiftDate } from '../utils/helpers';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
-// ── Live Attendance ────────────────────────────────────────────────────────────
-function LiveAttendance({ sessionId }) {
-  const { filters } = useApp();
-  const { showToast } = useApp();
-  const { userRole } = useAuth();
-  const [stats, setStats] = useState({ present: 0, newDevotees: 0, confirmed: 0, totalPresent: 0 });
+// ── Live Attendance ────────────────────────────────────────────────────────
+function LivePanel({ sessionId, sessionDate }) {
+  const { showToast, filters } = useApp();
+  const [stats, setStats] = useState({ present: 0, newDevotees: 0 });
   const [candidates, setCandidates] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const loadStats = useCallback(async () => {
-    const s = await DB.getSessionStats(sessionId);
-    setStats(s);
-  }, [sessionId]);
-
-  const loadCandidates = useCallback(async () => {
+  const loadAll = useCallback(async () => {
+    if (!sessionId) return;
     setLoading(true);
-    const list = await DB.getAttendanceCandidates(sessionId, search, filters.team);
+    const [s, list] = await Promise.all([
+      DB.getSessionStats(sessionId),
+      DB.getAttendanceCandidates(sessionId, search, filters.team),
+    ]);
+    setStats(s);
     setCandidates(list);
     setLoading(false);
   }, [sessionId, search, filters.team]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    loadStats();
-    loadCandidates();
-  }, [sessionId, loadStats, loadCandidates]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   async function markPresent(d, isNew = false) {
     try {
-      await DB.markPresent(sessionId, { id: d.id, name: d.name, teamName: d.team_name || d.teamName }, isNew);
+      await DB.markPresent(sessionId, { id: d.id, name: d.name, teamName: d.team_name }, isNew);
       showToast(`${d.name} marked present`, 'success');
-      loadStats();
-      loadCandidates();
+      loadAll();
     } catch (err) {
-      if (err.code === 409) showToast('Already marked present', 'warning');
-      else showToast('Error marking present', 'error');
+      showToast(err.code === 409 ? 'Already marked' : 'Error', err.code === 409 ? 'warning' : 'error');
     }
   }
 
   async function undoPresent(d) {
-    if (!confirm(`Remove ${d.name} from attendance?`)) return;
+    if (!confirm(`Remove ${d.name}?`)) return;
     await DB.undoPresent(sessionId, d.id);
-    showToast(`${d.name} removed`, 'info');
-    loadStats();
-    loadCandidates();
+    showToast('Removed', 'info');
+    loadAll();
   }
 
   return (
     <div>
-      {/* Stats */}
       <div className="stats-row">
-        <div className="stat-card"><div className="stat-value">{stats.confirmed}</div><div className="stat-label">Confirmed</div></div>
         <div className="stat-card"><div className="stat-value">{stats.present}</div><div className="stat-label">Present</div></div>
         <div className="stat-card"><div className="stat-value">{stats.newDevotees}</div><div className="stat-label">New</div></div>
-        <div className="stat-card"><div className="stat-value">{stats.totalPresent}</div><div className="stat-label">Total</div></div>
       </div>
-
-      {/* Search */}
       <div className="search-box my-3">
         <input className="form-input" placeholder="Search devotee…" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
-
       {loading ? <div className="loading-spinner" /> : (
         <div className="attendance-list">
           {candidates.length === 0 && <div className="empty-state">No candidates</div>}
@@ -77,25 +65,28 @@ function LiveAttendance({ sessionId }) {
                 <div className="att-card-info">
                   <div className="att-card-name">
                     {d.name}
-                    {isBirthdayThisWeek(d.dob) && <span title="Birthday this week">🎂</span>}
+                    {isBirthdayThisWeek(d.dob) && <span title="Birthday">🎂</span>}
                     {d.coming_status === 'Yes' && <span className="badge-confirmed">Confirmed</span>}
                   </div>
                   <div className="att-card-meta">
                     {d.team_name && <span>{d.team_name}</span>}
                     {d.calling_by && <span>· {d.calling_by}</span>}
-                    {d.marked_at && <span className={`att-time ${attTimeStyle(d.marked_at_client)}`}>· ✓ {new Date(d.marked_at?.toDate?.() || d.marked_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>}
+                    {d.is_present && d.marked_at_client && (
+                      <span className={`att-time ${attTimeStyle(d.marked_at_client)}`}>
+                        · ✓ {new Date(d.marked_at_client).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
               <div className="att-card-actions">
-                {d.is_present ? (
-                  <button className="btn-outline sm" onClick={() => undoPresent(d)}>Undo</button>
-                ) : (
-                  <>
-                    <button className="present-btn" onClick={() => markPresent(d, false)}>Mark Present</button>
-                    <button className="btn-outline sm" onClick={() => markPresent(d, true)}>New</button>
-                  </>
-                )}
+                {d.is_present
+                  ? <button className="btn-outline sm" onClick={() => undoPresent(d)}>Undo</button>
+                  : <>
+                      <button className="present-btn" onClick={() => markPresent(d, false)}>Mark Present</button>
+                      <button className="btn-outline sm" onClick={() => markPresent(d, true)}>New</button>
+                    </>
+                }
               </div>
             </div>
           ))}
@@ -105,23 +96,22 @@ function LiveAttendance({ sessionId }) {
   );
 }
 
-// ── Attendance Sheet ───────────────────────────────────────────────────────────
-function AttendanceSheet() {
+// ── Attendance Sheet ───────────────────────────────────────────────────────
+function SheetPanel() {
   const { filters } = useApp();
   const [yearIdx, setYearIdx] = useState(0);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const years = getFYYears();
 
-  async function loadSheet() {
+  async function load() {
     setLoading(true);
-    const y = years[yearIdx];
-    const d = await DB.getSheetData(y.startDate, y.endDate);
+    const d = await DB.getSheetData(years[yearIdx].startDate, years[yearIdx].endDate);
     setData(d);
     setLoading(false);
   }
 
-  useEffect(() => { loadSheet(); }, [yearIdx]);
+  useEffect(() => { load(); }, [yearIdx]);
 
   if (loading) return <div className="loading-spinner" />;
   if (!data) return null;
@@ -135,17 +125,15 @@ function AttendanceSheet() {
         <select className="form-select" value={yearIdx} onChange={e => setYearIdx(Number(e.target.value))}>
           {years.map((y, i) => <option key={i} value={i}>{y.label}</option>)}
         </select>
-        <button className="btn-outline" onClick={loadSheet}>Refresh</button>
+        <button className="btn-outline" onClick={load}>Refresh</button>
       </div>
       <div className="table-scroll">
         <table className="attendance-sheet-table">
           <thead>
             <tr>
-              <th className="frozen sno">Sno</th>
+              <th className="frozen sno">#</th>
               <th className="frozen name-col">Name</th>
-              <th>Team</th>
-              <th>CR</th>
-              <th>AT</th>
+              <th>Team</th><th>CR</th><th>AT</th>
               {sessions.map(s => <th key={s.id}>{s.session_date.slice(5)}</th>)}
             </tr>
           </thead>
@@ -171,23 +159,111 @@ function AttendanceSheet() {
   );
 }
 
-// ── Main AttendancePage ────────────────────────────────────────────────────────
+// ── Reports sub-tabs ───────────────────────────────────────────────────────
+function TeamsReport({ sessionId, sessionDate }) {
+  const [report, setReport] = useState([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!sessionId) return;
+    setLoading(true);
+    const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
+    DB.getTeamsReport(sat, sessionId).then(r => { setReport(r); setLoading(false); });
+  }, [sessionId]);
+  if (loading) return <div className="loading-spinner" />;
+  return (
+    <table className="simple-table">
+      <thead><tr><th>Team</th><th>Total</th><th>Present</th><th>Target</th><th>%</th></tr></thead>
+      <tbody>
+        {report.map((r, i) => (
+          <tr key={i}>
+            <td>{r.team}</td><td>{r.total}</td><td><strong>{r.actualPresent}</strong></td><td>{r.target || '—'}</td>
+            <td><span className={`pct-badge pct-${r.percentage >= 80 ? 'good' : r.percentage >= 50 ? 'ok' : 'low'}`}>{r.target ? `${r.percentage}%` : '—'}</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function TrendsReport() {
+  const [trends, setTrends] = useState([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    setLoading(true);
+    DB.getTrends('weekly').then(t => { setTrends(t); setLoading(false); });
+  }, []);
+  if (loading) return <div className="loading-spinner" />;
+  if (!trends.length) return <div className="empty-state">No data</div>;
+  const chartData = {
+    labels: trends.map(t => t.period?.slice(5)),
+    datasets: [{ label: 'Attendance', data: trends.map(t => t.count), borderColor: '#f5c518', backgroundColor: 'rgba(245,197,24,.15)', tension: 0.4, fill: true, pointRadius: 4 }],
+  };
+  return <div className="chart-wrap"><Line data={chartData} options={{ responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }} /></div>;
+}
+
+function NewComersReport({ sessionId }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!sessionId) return;
+    setLoading(true);
+    DB.getSessionAttendance(sessionId).then(att => {
+      setList(att.filter(a => a.is_new_devotee));
+      setLoading(false);
+    });
+  }, [sessionId]);
+  if (loading) return <div className="loading-spinner" />;
+  return (
+    <table className="simple-table">
+      <thead><tr><th>Name</th><th>Team</th></tr></thead>
+      <tbody>
+        {list.length === 0 && <tr><td colSpan={2} className="empty-state">No new comers</td></tr>}
+        {list.map((a, i) => <tr key={i}><td>{a.devotee_name}</td><td>{a.team_name}</td></tr>)}
+      </tbody>
+    </table>
+  );
+}
+
+const REPORT_TABS = [
+  { id: 'sheet',      label: 'Attendance Sheet' },
+  { id: 'teams',      label: 'Teams' },
+  { id: 'newcomers',  label: 'New Comers' },
+  { id: 'trends',     label: 'Trends' },
+];
+
+function ReportsPanel({ sessionId, sessionDate }) {
+  const [reportTab, setReportTab] = useState('sheet');
+  return (
+    <div>
+      <div className="sub-tab-bar" style={{ marginTop: 8 }}>
+        {REPORT_TABS.map(t => (
+          <button key={t.id} className={`sub-tab-btn${reportTab === t.id ? ' active' : ''}`} onClick={() => setReportTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {reportTab === 'sheet'     && <SheetPanel />}
+      {reportTab === 'teams'     && <TeamsReport sessionId={sessionId} sessionDate={sessionDate} />}
+      {reportTab === 'newcomers' && <NewComersReport sessionId={sessionId} />}
+      {reportTab === 'trends'    && <TrendsReport />}
+    </div>
+  );
+}
+
+// ── Main AttendancePage ────────────────────────────────────────────────────
 export default function AttendancePage() {
-  const { filters, showToast } = useApp();
+  const { filters } = useApp();
   const [subTab, setSubTab] = useState('live');
   const [sessionId, setSessionId] = useState('');
   const [sessionDate, setSessionDate] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function init() {
-      setLoading(true);
-      const s = await DB.getTodaySession();
+    DB.getTodaySession().then(s => {
       setSessionId(s.id);
       setSessionDate(s.session_date);
       setLoading(false);
-    }
-    init();
+    });
   }, []);
 
   useEffect(() => {
@@ -198,11 +274,8 @@ export default function AttendancePage() {
   return (
     <div className="tab-page">
       <div className="sub-tab-bar">
-        {['live','sheet','reports'].map(t => (
-          <button key={t} className={`sub-tab-btn${subTab === t ? ' active' : ''}`} onClick={() => setSubTab(t)}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
+        <button className={`sub-tab-btn${subTab === 'live' ? ' active' : ''}`} onClick={() => setSubTab('live')}>Live</button>
+        <button className={`sub-tab-btn${subTab === 'reports' ? ' active' : ''}`} onClick={() => setSubTab('reports')}>Reports</button>
       </div>
 
       {sessionDate && (
@@ -213,53 +286,10 @@ export default function AttendancePage() {
 
       {loading ? <div className="loading-spinner" /> : (
         <>
-          {subTab === 'live' && <LiveAttendance sessionId={sessionId} />}
-          {subTab === 'sheet' && <AttendanceSheet />}
-          {subTab === 'reports' && <AttendanceReports sessionId={sessionId} sessionDate={sessionDate} />}
+          {subTab === 'live'    && <LivePanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {subTab === 'reports' && <ReportsPanel sessionId={sessionId} sessionDate={sessionDate} />}
         </>
       )}
-    </div>
-  );
-}
-
-function AttendanceReports({ sessionId, sessionDate }) {
-  const { filters } = useApp();
-  const [report, setReport] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    setLoading(true);
-    // Calling date is Saturday before session Sunday
-    const sat = sessionDate ? new Date(sessionDate) : new Date();
-    sat.setDate(sat.getDate() - 1);
-    const weekDate = sat.toISOString().slice(0,10);
-    DB.getTeamsReport(weekDate, sessionId).then(r => { setReport(r); setLoading(false); });
-  }, [sessionId, sessionDate]);
-
-  if (loading) return <div className="loading-spinner" />;
-
-  return (
-    <div className="report-section">
-      <h3 className="section-title">Team Attendance Report</h3>
-      <table className="simple-table">
-        <thead><tr><th>Team</th><th>Total</th><th>Present</th><th>Target</th><th>%</th></tr></thead>
-        <tbody>
-          {report.map((r, i) => (
-            <tr key={i}>
-              <td>{r.team}</td>
-              <td>{r.total}</td>
-              <td><strong>{r.actualPresent}</strong></td>
-              <td>{r.target || '—'}</td>
-              <td>
-                <span className={`pct-badge pct-${r.percentage >= 80 ? 'good' : r.percentage >= 50 ? 'ok' : 'low'}`}>
-                  {r.target ? `${r.percentage}%` : '—'}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

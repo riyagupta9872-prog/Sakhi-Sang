@@ -80,8 +80,16 @@ input, select, textarea { font-family: inherit; }
 .menu-divider { height: 1px; background: var(--border); }
 
 /* ── Tab Nav ──────────────────────────────────────────────────────────────── */
-.tab-nav { display: flex; align-items: center; gap: 4px; height: var(--nav-h); padding: 0 16px; background: white; border-bottom: 2px solid #f5c518; overflow-x: auto; flex-shrink: 0; }
-.tab-nav::-webkit-scrollbar { height: 0; }
+.tab-nav { position: relative; background: white; border-bottom: 2px solid #f5c518; flex-shrink: 0; min-height: var(--nav-h); }
+.tab-scroll-row { display: flex; align-items: center; gap: 4px; padding: 0 12px; overflow-x: auto; height: var(--nav-h); }
+.tab-scroll-row::-webkit-scrollbar { height: 0; }
+/* Mobile tab bar */
+.tab-mobile-bar { display: none; align-items: center; justify-content: space-between; padding: 0 14px; height: var(--nav-h); }
+.tab-current { font-size: .88rem; font-weight: 700; color: #1a1a1a; }
+.tab-hamburger { font-size: 1.3rem; color: #1a1a1a; padding: 4px 8px; }
+.tab-mobile-menu { position: absolute; top: 100%; left: 0; right: 0; background: white; z-index: 90; border-bottom: 2px solid #f5c518; box-shadow: var(--shadow-md); display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.tab-mobile-item { display: flex; align-items: center; gap: 8px; padding: 11px 16px; font-size: .85rem; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; }
+.tab-mobile-item.active { background: #f5c518; color: #1a1a1a; }
 .tab-btn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-full); font-size: .82rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; transition: all .15s; flex-shrink: 0; }
 .tab-btn:hover { background: var(--brand-light); color: #1a1a1a; }
 .tab-btn.active { background: #f5c518; color: #1a1a1a; font-weight: 700; }
@@ -405,9 +413,14 @@ input, select, textarea { font-family: inherit; }
 .hidden { display: none !important; }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
+/* Event roster */
+.event-roster-header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.event-roster-header h3 { font-size: 1rem; font-weight: 700; }
+
 @media (max-width: 720px) {
   .bottom-nav { display: flex; }
-  .tab-nav { display: none; }
+  .tab-scroll-row { display: none; }
+  .tab-mobile-bar { display: flex; }
   .main-content { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid .full { grid-column: 1; }
