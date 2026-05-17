@@ -80,17 +80,16 @@ input, select, textarea { font-family: inherit; }
 .menu-divider { height: 1px; background: var(--border); }
 
 /* ── Tab Nav ──────────────────────────────────────────────────────────────── */
-/* ── Tab Nav — dropdown system ─────────────────────────────────────────── */
-.tab-nav { display: flex; align-items: center; gap: 2px; height: var(--nav-h); padding: 0 8px; background: white; border-bottom: 2px solid #f5c518; overflow-x: auto; flex-shrink: 0; position: relative; z-index: 50; }
+/* ── Tab Nav ─────────────────────────────────────────────────────────────── */
+.tab-nav { display: flex; align-items: center; gap: 2px; height: var(--nav-h); padding: 0 8px; background: white; border-bottom: 2px solid #f5c518; overflow-x: auto; flex-shrink: 0; }
 .tab-nav::-webkit-scrollbar { height: 0; }
-.tab-btn-group { position: relative; flex-shrink: 0; }
-.tab-caret { font-size: .65rem; margin-left: 3px; opacity: .7; }
-/* Tab dropdown menu */
-.tab-menu { position: absolute; top: calc(100% + 2px); left: 0; min-width: 180px; background: white; border: 1.5px solid #f5c518; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); z-index: 200; overflow: hidden; animation: frFadeIn .12s ease; }
-.tab-menu-item { display: block; width: 100%; padding: 9px 14px; text-align: left; font-size: .83rem; font-weight: 600; color: var(--text); transition: background .1s; border: none; background: none; cursor: pointer; }
+.tab-caret { font-size: .6rem; margin-left: 3px; opacity: .65; }
+/* Dropdown portal (rendered in <body>) */
+.tab-menu { background: white; border: 1.5px solid #f5c518; border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,.14); overflow: hidden; animation: dropIn .12s ease; }
+.tab-menu-item { display: block; width: 100%; padding: 9px 16px; text-align: left; font-size: .83rem; font-weight: 600; color: var(--text); border: none; background: none; cursor: pointer; transition: background .1s; white-space: nowrap; }
 .tab-menu-item:hover { background: #fffde7; color: #b8860b; }
-.tab-menu-divider { padding: 5px 14px 3px; font-size: .68rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: .08em; background: #fafafa; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-top: 2px; }
-@keyframes frFadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+.tab-menu-divider { padding: 6px 16px 3px; font-size: .67rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: .07em; background: #fafafa; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+@keyframes dropIn { from { opacity:0; transform:translateY(-6px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
 
 /* ── Breadcrumb trail ──────────────────────────────────────────────────── */
 .breadcrumb-trail { display: flex; align-items: center; gap: 4px; padding: 5px 16px; background: #fffde7; border-bottom: 1px solid #f5c518; font-size: .75rem; flex-shrink: 0; min-height: 30px; }
@@ -111,9 +110,9 @@ input, select, textarea { font-family: inherit; }
 .bnav-menu-item { display: block; width: 100%; padding: 9px 14px; text-align: left; font-size: .82rem; font-weight: 600; color: var(--text); border: none; background: none; cursor: pointer; }
 .bnav-menu-item:hover { background: #fffde7; }
 .bnav-menu-divider { padding: 4px 14px 2px; font-size: .67rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; background: #fafafa; border-bottom: 1px solid var(--border); }
-.tab-btn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-full); font-size: .82rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; transition: all .15s; flex-shrink: 0; }
-.tab-btn:hover { background: var(--brand-light); color: #1a1a1a; }
-.tab-btn.active { background: #f5c518; color: #1a1a1a; font-weight: 700; }
+.tab-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: var(--radius-full); font-size: .8rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; transition: all .13s; flex-shrink: 0; border: 1.5px solid transparent; }
+.tab-btn:hover { background: #fffde7; color: #1a1a1a; border-color: #f5c518; }
+.tab-btn.active { background: #f5c518; color: #1a1a1a; font-weight: 700; border-color: #d4a900; box-shadow: 0 1px 4px rgba(245,197,24,.35); }
 .tab-icon { font-size: .95rem; }
 .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid var(--border); padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); z-index: 90; flex-shrink: 0; }
 .bottom-nav-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; padding: 4px; color: var(--text-muted); font-size: .68rem; font-weight: 600; }
@@ -124,9 +123,11 @@ input, select, textarea { font-family: inherit; }
 /* ── Filter Ribbon ────────────────────────────────────────────────────────── */
 .filter-ribbon { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; background: #fffde7; border-bottom: 1px solid #f5c518; min-height: var(--ribbon-h); flex-shrink: 0; }
 .fr-chip-wrap { position: relative; }
-.fr-chip { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1.5px solid #d4a900; border-radius: var(--radius-full); font-size: .78rem; font-weight: 600; color: #1a1a1a; background: white; cursor: pointer; transition: all .12s; }
+.fr-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border: 1.5px solid #d4a900; border-radius: var(--radius-full); font-size: .78rem; font-weight: 600; color: #1a1a1a; background: white; cursor: pointer; transition: all .12s; }
 .fr-chip:hover { border-color: #f5c518; background: #fffde7; }
 .fr-chip.active { border-color: #d4a900; color: #1a1a1a; background: #f5c518; }
+.fr-chip .fr-chip-label { font-size: .7rem; font-weight: 500; color: rgba(0,0,0,.5); margin-right: 1px; }
+.fr-chip .fr-chip-value { font-weight: 700; }
 .fr-chip.locked { cursor: default; }
 .fr-chip-label { color: var(--text-light); font-size: .7rem; font-weight: 500; }
 .fr-chip-value { color: var(--text); }
