@@ -10,7 +10,8 @@ import DevoteePicker from '../components/common/DevoteePicker';
 export default function ActivityTabPage({ config }) {
   const { showToast, filters } = useApp();
   const { userTeam, isSuper } = useAuth();
-  const [subTab, setSubTab] = useState('log');
+  const { activeView } = useApp();
+  const subTab = activeView || 'log';
   const [form, setForm] = useState({
     devoteeId: '', devoteeName: '', teamName: userTeam || '', date: toLocalDateStr(),
     quantity: '', count: '', amount: '', serviceDescription: '', note: '',
@@ -78,10 +79,6 @@ export default function ActivityTabPage({ config }) {
 
   return (
     <div className="tab-page">
-      <div className="sub-tab-bar">
-        <button className={`sub-tab-btn${subTab === 'log' ? ' active' : ''}`} onClick={() => setSubTab('log')}>Log Entry</button>
-        <button className={`sub-tab-btn${subTab === 'reports' ? ' active' : ''}`} onClick={() => setSubTab('reports')}>Reports</button>
-      </div>
 
       {subTab === 'log' && (
         <div>

@@ -347,43 +347,41 @@ function TeamsPanel({ sessionId, sessionDate }) {
   );
 }
 
-// ── Reports Panel (7 sub-reports) ───────────────────────────────────────────
-const REPORT_TABS = [
-  { id: 'sheet',       label: 'Attendance Sheet' },
-  { id: 'leaderboard', label: 'Team Leaderboard' },
-  { id: 'teams',       label: 'Teams Report' },
-  { id: 'newcomers',   label: 'New Comers' },
-  { id: 'latecomers',  label: 'Late Comers' },
-  { id: 'serious',     label: 'Serious Analysis' },
-  { id: 'trends',      label: 'Trends' },
-];
-
-function ReportsPanel({ sessionId, sessionDate }) {
-  const [rt, setRt] = useState('sheet');
+// ── Accuracy Panel (calling vs attendance) ──────────────────────────────────
+function AccuracyPanel({ sessionId, sessionDate }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [absentModal, setAbsentModal] = useState(null);
+  useEffect(() => {
+    if (!sessionDate) return;
+    setLoading(true);
+    const wd = shiftDate(sessionDate, -1);
+    DB.getYesAbsentList(wd, sessionDate).then(d => { setData(d); setLoading(false); });
+  }, [sessionDate]);
+  if (loading) return <div className="loading-spinner" />;
+  if (!data) return <div className="empty-state">No session selected</div>;
   return (
     <div>
-      <div className="sub-tab-bar" style={{ flexWrap: 'wrap', marginTop: 8 }}>
-        {REPORT_TABS.map(t => (
-          <button key={t.id} className={`sub-tab-btn${rt === t.id ? ' active' : ''}`} onClick={() => setRt(t.id)}>
-            {t.label}
-          </button>
-        ))}
+      <h4 className="section-title">Calling Accuracy</h4>
+      {!data.hasSession && <div className="locked-banner amber">⚠ Attendance not yet marked for {formatDate(sessionDate)}</div>}
+      <div className="stat-card" style={{display:'inline-block',margin:'8px 0'}}>
+        <div className="stat-value">{data.list?.length ?? 0}</div>
+        <div className="stat-label">Said Yes · Didn't Attend</div>
       </div>
-      {rt === 'sheet'       && <SheetPanel />}
-      {rt === 'leaderboard' && <LeaderboardPanel sessionId={sessionId} sessionDate={sessionDate} />}
-      {rt === 'teams'       && <TeamsPanel sessionId={sessionId} sessionDate={sessionDate} />}
-      {rt === 'newcomers'   && <NewComersPanel sessionId={sessionId} />}
-      {rt === 'latecomers'  && <LateComersPanel sessionId={sessionId} />}
-      {rt === 'serious'     && <SeriousPanel sessionId={sessionId} sessionDate={sessionDate} />}
-      {rt === 'trends'      && <TrendsPanel />}
+      {data.list?.length > 0 && <button className="btn-outline ml-2" onClick={() => setAbsentModal(data.list)}>View List</button>}
+      <Modal open={!!absentModal} onClose={() => setAbsentModal(null)} title="Said Yes — Didn't Attend">
+        <table className="simple-table">
+          <thead><tr><th>#</th><th>Name</th><th>Team</th><th>Calling By</th></tr></thead>
+          <tbody>{absentModal?.map((d,i) => <tr key={i}><td>{i+1}</td><td>{d.devotee_name||d.name}</td><td>{d.team_name||d.teamName}</td><td>{d.calling_by||d.callingBy||'—'}</td></tr>)}</tbody>
+        </table>
+      </Modal>
     </div>
   );
 }
 
-// ── Main AttendancePage ──────────────────────────────────────────────────────
+// ── Main AttendancePage — driven by activeView from context ──────────────────
 export default function AttendancePage() {
-  const { filters } = useApp();
-  const [subTab, setSubTab] = useState('live');
+  const { filters, activeView } = useApp();
   const [sessionId, setSessionId] = useState('');
   const [sessionDate, setSessionDate] = useState('');
   const [loading, setLoading] = useState(true);
@@ -396,12 +394,10 @@ export default function AttendancePage() {
     if (filters.sessionDate) setSessionDate(filters.sessionDate);
   }, [filters.sessionId, filters.sessionDate]);
 
+  const view = activeView || 'live';
+
   return (
     <div className="tab-page">
-      <div className="sub-tab-bar">
-        <button className={`sub-tab-btn${subTab === 'live' ? ' active' : ''}`} onClick={() => setSubTab('live')}>Live Attendance</button>
-        <button className={`sub-tab-btn${subTab === 'reports' ? ' active' : ''}`} onClick={() => setSubTab('reports')}>Reports</button>
-      </div>
       {sessionDate && (
         <div className="session-info-bar">
           <span className="session-label">Session: <strong>{formatDate(sessionDate)}</strong></span>
@@ -409,8 +405,15 @@ export default function AttendancePage() {
       )}
       {loading ? <div className="loading-spinner" /> : (
         <>
-          {subTab === 'live'    && <LivePanel sessionId={sessionId} sessionDate={sessionDate} />}
-          {subTab === 'reports' && <ReportsPanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {view === 'live'       && <LivePanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {view === 'sheet'      && <SheetPanel />}
+          {view === 'leaderboard'&& <LeaderboardPanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {view === 'teams'      && <TeamsPanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {view === 'newcomers'  && <NewComersPanel sessionId={sessionId} />}
+          {view === 'late'       && <LateComersPanel sessionId={sessionId} />}
+          {view === 'serious'    && <SeriousPanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {view === 'trends'     && <TrendsPanel />}
+          {view === 'accuracy'   && <AccuracyPanel sessionId={sessionId} sessionDate={sessionDate} />}
         </>
       )}
     </div>

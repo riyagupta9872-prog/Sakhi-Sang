@@ -3,31 +3,73 @@ import { toLocalDateStr, snapToSunday } from '../utils/helpers';
 
 const AppContext = createContext(null);
 
-export function AppProvider({ children }) {
-  const [activeTab, setActiveTab] = useState('home');
-  const [toast, setToast] = useState(null);
-  const toastTimer = useRef(null);
+// TAB_VIEWS mirrors the original exactly
+export const TAB_VIEWS = {
+  calling: [
+    { key: 'calls',       label: 'Calls',              roles: ['teamAdmin','serviceDevotee'] },
+    { key: 'team-calling',label: 'Team Calling',       roles: ['teamAdmin','superAdmin'] },
+    { divider: true,      label: 'REPORTS' },
+    { key: 'weekly',      label: 'Weekly Report' },
+    { key: 'submission',  label: 'Submission Reports' },
+    { key: 'history',     label: 'Calling History' },
+  ],
+  attendance: [
+    { key: 'live',       label: 'Live Attendance' },
+    { divider: true,     label: 'REPORTS' },
+    { key: 'sheet',      label: 'Attendance Sheet' },
+    { key: 'late',       label: 'Late Comers' },
+    { key: 'newcomers',  label: 'New Comers' },
+    { key: 'serious',    label: 'Serious Analysis' },
+    { key: 'teams',      label: 'Team Leaderboard' },
+    { key: 'trends',     label: 'Trends' },
+    { key: 'accuracy',   label: 'Accuracy' },
+  ],
+  books:        [{ key:'log', label:'Log Entry' }, { key:'reports', label:'Reports' }],
+  service:      [{ key:'log', label:'Log Entry' }, { key:'reports', label:'Reports' }],
+  registration: [{ key:'log', label:'Log Entry' }, { key:'reports', label:'Reports' }],
+  donation:     [{ key:'log', label:'Log Entry' }, { key:'reports', label:'Reports' }],
+  'calling-mgmt': [
+    { key: 'calling',       label: 'Calling List' },
+    { key: 'newcomers',     label: 'New Comers' },
+    { key: 'online',        label: 'Online Class' },
+    { key: 'notinterested', label: 'Not Interested' },
+    { key: 'festival',      label: 'Festival Calling' },
+  ],
+};
 
-  // Master filter state
+// Default view for each tab
+const DEFAULT_VIEW = {
+  calling: 'calls', attendance: 'live',
+  books: 'log', service: 'log', registration: 'log', donation: 'log',
+  'calling-mgmt': 'calling',
+};
+
+export function AppProvider({ children }) {
+  const [activeTab, setActiveTabRaw] = useState('dashboard');
+  const [activeView, setActiveViewRaw] = useState('');
+  const toastTimer = useRef(null);
+  const [toast, setToast] = useState(null);
+
+  // Master filter
   const [filters, setFilters] = useState({
     sessionId: '',
     sessionDate: toLocalDateStr(),
     team: '',
     callingBy: '',
-    period: 'weekly',
   });
-
-  // Sessions cache for filter bar
   const [sessionsCache, setSessionsCache] = useState([]);
   const [callingPersonsCache, setCallingPersonsCache] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState('');
 
-  // Modal states
-  const [modals, setModals] = useState({});
+  function setActiveTab(tab) {
+    setActiveTabRaw(tab);
+    // Set default view when switching to a tab that has views
+    setActiveViewRaw(DEFAULT_VIEW[tab] || '');
+  }
 
-  function openModal(id) { setModals(m => ({ ...m, [id]: true })); }
-  function closeModal(id) { setModals(m => ({ ...m, [id]: false })); }
-  function isModalOpen(id) { return !!modals[id]; }
+  function navTo(tab, view) {
+    setActiveTabRaw(tab);
+    setActiveViewRaw(view || DEFAULT_VIEW[tab] || '');
+  }
 
   function showToast(message, type = 'info', duration = 3000) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -40,22 +82,11 @@ export function AppProvider({ children }) {
   }, []);
 
   const value = {
-    activeTab,
-    setActiveTab,
-    filters,
-    dispatchFilters,
-    sessionsCache,
-    setSessionsCache,
-    callingPersonsCache,
-    setCallingPersonsCache,
-    currentSessionId,
-    setCurrentSessionId,
-    toast,
-    showToast,
-    modals,
-    openModal,
-    closeModal,
-    isModalOpen,
+    activeTab, setActiveTab, activeView, setActiveViewRaw, navTo,
+    filters, dispatchFilters,
+    sessionsCache, setSessionsCache,
+    callingPersonsCache, setCallingPersonsCache,
+    toast, showToast,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
