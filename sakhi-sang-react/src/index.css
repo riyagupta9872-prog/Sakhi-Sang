@@ -438,6 +438,45 @@ input, select, textarea { font-family: inherit; }
 .stat-pill.purple { border-color: #7c3aed; color: #7c3aed; }
 .stat-pill.purple.active { background: #7c3aed; color: white; }
 
+/* Auth enhancements */
+.pw-wrap { position: relative; display: flex; }
+.pw-wrap .form-input { padding-right: 36px; }
+.pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 1rem; color: var(--text-muted); background: none; border: none; cursor: pointer; }
+.auth-links { text-align: center; font-size: .82rem; color: var(--text-muted); display: flex; gap: 6px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.auth-sep { color: var(--border); }
+
+/* Profile */
+.profile-edit-wrap { display: flex; flex-direction: column; gap: 4px; }
+.profile-pic-section { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+.profile-pic-preview { position: relative; cursor: pointer; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; flex-shrink: 0; border: 2px solid #f5c518; }
+.profile-pic-img { width: 100%; height: 100%; object-fit: cover; }
+.profile-pic-initials { width: 100%; height: 100%; background: linear-gradient(135deg, #f5c518, #fdd835); color: #1a1a1a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.4rem; }
+.profile-pic-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; font-size: 1.4rem; }
+.profile-pic-preview:hover .profile-pic-overlay { opacity: 1; }
+.profile-pic-actions { display: flex; flex-direction: column; gap: 6px; }
+.avatar-wrap { position: relative; }
+.avatar-img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,.3); }
+
+/* Leaderboard */
+.leaderboard-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.leaderboard-rank { font-size: 1.3rem; width: 36px; text-align: center; flex-shrink: 0; }
+.leaderboard-team { flex: 1; min-width: 0; }
+.leaderboard-name { font-weight: 700; font-size: .88rem; margin-bottom: 4px; }
+.leaderboard-bar-wrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.leaderboard-bar { height: 100%; border-radius: 3px; transition: width .4s; }
+.leaderboard-stats { display: flex; align-items: center; font-size: .88rem; font-weight: 700; flex-shrink: 0; }
+
+/* Home actions */
+.home-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.kpi-icon { font-size: 1.2rem; margin-bottom: 4px; }
+
+/* Birthday list */
+.birthday-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.birthday-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: var(--brand-light); border-radius: var(--radius-md); }
+
+/* Clear data tabs */
+.clear-mode-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+
 /* Event roster */
 .event-roster-header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .event-roster-header h3 { font-size: 1rem; font-weight: 700; }

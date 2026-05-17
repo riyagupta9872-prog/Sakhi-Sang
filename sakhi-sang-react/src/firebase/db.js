@@ -837,6 +837,35 @@ export const DB = {
     };
   },
 
+  async getSeriousReport(sessionId, weekDate) {
+    const STATUSES = ['Most Serious','Serious','Expected to be Serious','New Devotee','Inactive'];
+    const devotees = await this.getDevotees({});
+    const csSnap = weekDate ? await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate))) : { docs: [] };
+    const attSnap = sessionId ? await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId))) : { docs: [] };
+    const csMap = {};
+    csSnap.docs.forEach(d => { const dat = d.data(); csMap[dat.devotee_id || dat.devoteeId] = dat.coming_status === 'Yes'; });
+    const attSet = new Set(attSnap.docs.map(d => d.data().devotee_id));
+    const result = {};
+    STATUSES.forEach(s => { result[s] = { promised: 0, arrived: 0 }; });
+    devotees.forEach(d => {
+      const st = d.devotee_status || 'Unknown';
+      if (!result[st]) result[st] = { promised: 0, arrived: 0 };
+      if (csMap[d.id]) result[st].promised++;
+      if (attSet.has(d.id)) result[st].arrived++;
+    });
+    return STATUSES.map(s => ({ status: s, ...result[s] }));
+  },
+
+  async getLateComers(sessionId) {
+    const snap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
+    const records = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    return records.filter(r => {
+      if (!r.marked_at_client) return false;
+      const h = new Date(r.marked_at_client).getHours();
+      return h >= 10; // after 10 AM considered late
+    }).sort((a, b) => new Date(a.marked_at_client) - new Date(b.marked_at_client));
+  },
+
   subscribeToCollection(col, onData, queryConstraints = []) {
     const q = queryConstraints.length
       ? query(collection(db, col), ...queryConstraints)

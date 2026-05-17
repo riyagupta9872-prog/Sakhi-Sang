@@ -2,61 +2,36 @@ import React, { useEffect, useState } from 'react';
 import { DB } from '../firebase/db';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatINR, toLocalDateStr, shiftDate, snapToSunday } from '../utils/helpers';
+import { formatDate, formatINR, toLocalDateStr, shiftDate } from '../utils/helpers';
 import Modal from '../components/common/Modal';
 
-function AttendanceCard({ sessionId, sessionDate }) {
-  const [report, setReport] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  async function load() {
-    setLoading(true);
-    const sat = shiftDate(sessionDate || toLocalDateStr(), -1);
-    const r = await DB.getTeamsReport(sat, sessionId);
-    setReport(r);
-    setLoading(false);
-  }
-
-  useEffect(() => { if (sessionId) load(); }, [sessionId]);
-
-  const total = report.reduce((s, r) => s + r.actualPresent, 0);
-
+// ── Birthday Popup ──────────────────────────────────────────────────────────
+function BirthdayPopup({ list, onClose }) {
+  if (!list.length) return null;
   return (
-    <div className="home-card" onClick={() => setOpen(true)}>
-      <div className="home-card-icon">✓</div>
-      <div className="home-card-body">
-        <div className="home-card-value">{total}</div>
-        <div className="home-card-label">Attendance</div>
+    <Modal open onClose={onClose} title="🎂 Birthdays This Week">
+      <div className="birthday-list">
+        {list.map(d => (
+          <div key={d.id} className="birthday-item">
+            <div className="devotee-avatar sm">🎂</div>
+            <div>
+              <strong>{d.name}</strong>
+              <div className="text-muted" style={{ fontSize: '.78rem' }}>
+                {d.team_name} {d.dob ? `· ${new Date(d.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}` : ''}
+              </div>
+            </div>
+            {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-icon" target="_blank" rel="noreferrer">💬</a>}
+          </div>
+        ))}
       </div>
-      <Modal open={open} onClose={() => setOpen(false)} title="Attendance Report">
-        {loading ? <div className="loading-spinner" /> : (
-          <table className="simple-table">
-            <thead><tr><th>Team</th><th>Total</th><th>Called</th><th>Came</th></tr></thead>
-            <tbody>
-              {report.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.team}</td><td>{r.total}</td><td>{r.callingList || 0}</td><td>{r.actualPresent}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Modal>
-    </div>
+      <div className="form-actions">
+        <button className="btn-primary btn-full" onClick={onClose}>Close</button>
+      </div>
+    </Modal>
   );
 }
 
-function QuickAddCard({ label, icon, onOpen }) {
-  return (
-    <div className="home-card quick-add-card" onClick={onOpen}>
-      <div className="home-card-icon">{icon}</div>
-      <div className="home-card-label">{label}</div>
-    </div>
-  );
-}
-
-// Session Config ─────────────────────────────────────────────────────────────
+// ── Session Config ──────────────────────────────────────────────────────────
 function SessionConfig({ open, onClose }) {
   const { showToast } = useApp();
   const [form, setForm] = useState({ callingDate: '', sessionDate: '', topic: '', speakerName: '', sessionType: 'regular' });
@@ -77,7 +52,9 @@ function SessionConfig({ open, onClose }) {
 
   async function save() {
     setLoading(true);
-    await DB.setCallingWeekConfig(form.callingDate, form.sessionDate, { topic: form.topic, speakerName: form.speakerName, sessionType: form.sessionType });
+    await DB.setCallingWeekConfig(form.callingDate, form.sessionDate, {
+      topic: form.topic, speakerName: form.speakerName, sessionType: form.sessionType,
+    });
     if (form.sessionDate) await DB.getOrCreateSession(form.sessionDate);
     showToast('Session configured', 'success');
     setLoading(false);
@@ -89,10 +66,14 @@ function SessionConfig({ open, onClose }) {
   return (
     <Modal open={open} onClose={onClose} title="Configure Session">
       <div className="form-grid">
-        <div className="form-group"><label className="form-label">Calling Date (Saturday)</label><input className="form-input" type="date" value={form.callingDate} onChange={e => setF('callingDate', e.target.value)} /></div>
-        <div className="form-group"><label className="form-label">Session Date (Sunday)</label><input className="form-input" type="date" value={form.sessionDate} onChange={e => setF('sessionDate', e.target.value)} /></div>
-        <div className="form-group full"><label className="form-label">Topic</label><input className="form-input" value={form.topic} onChange={e => setF('topic', e.target.value)} /></div>
-        <div className="form-group"><label className="form-label">Speaker</label><input className="form-input" value={form.speakerName} onChange={e => setF('speakerName', e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">Calling Date (Saturday)</label>
+          <input className="form-input" type="date" value={form.callingDate} onChange={e => setF('callingDate', e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">Session Date (Sunday)</label>
+          <input className="form-input" type="date" value={form.sessionDate} onChange={e => setF('sessionDate', e.target.value)} /></div>
+        <div className="form-group full"><label className="form-label">Topic</label>
+          <input className="form-input" value={form.topic} onChange={e => setF('topic', e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">Speaker</label>
+          <input className="form-input" value={form.speakerName} onChange={e => setF('speakerName', e.target.value)} /></div>
         <div className="form-group">
           <label className="form-label">Session Type</label>
           <select className="form-select" value={form.sessionType} onChange={e => setF('sessionType', e.target.value)}>
@@ -104,99 +85,87 @@ function SessionConfig({ open, onClose }) {
       </div>
       <div className="form-actions">
         <button className="btn-outline" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" onClick={save} disabled={loading}>{loading ? 'Saving…' : 'Save Config'}</button>
+        <button className="btn-primary" onClick={save} disabled={loading}>{loading ? 'Saving…' : 'Save'}</button>
       </div>
     </Modal>
   );
 }
 
-// Events ─────────────────────────────────────────────────────────────────────
-function EventsSection() {
-  const { showToast } = useApp();
-  const { isSuper } = useAuth();
-  const [events, setEvents] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editEvent, setEditEvent] = useState(null);
-  const [form, setForm] = useState({ event_name: '', event_date: '', description: '' });
+// ── Dashboard KPIs ──────────────────────────────────────────────────────────
+function DashboardKPIs({ sessionId, sessionDate }) {
+  const { filters } = useApp();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => { DB.getEvents().then(setEvents); }, []);
+  useEffect(() => { if (sessionId) load(); }, [sessionId, filters.team]);
 
-  async function saveEvent() {
-    if (!form.event_name) return;
-    if (editEvent) {
-      await DB.updateEvent(editEvent.id, form);
-      showToast('Event updated', 'success');
-    } else {
-      await DB.createEvent(form);
-      showToast('Event created', 'success');
-    }
-    DB.getEvents().then(setEvents);
-    setShowForm(false);
-    setForm({ event_name: '', event_date: '', description: '' });
-    setEditEvent(null);
+  async function load() {
+    setLoading(true);
+    const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
+    const sun = shiftDate(sat, -6);
+    const [att, books, services, registrations, donations] = await Promise.all([
+      DB.getSessionAttendance(sessionId),
+      DB.getBookDistributions({ startDate: sun, endDate: sat }),
+      DB.getServices({ startDate: sun, endDate: sat }),
+      DB.getRegistrations({ startDate: sun, endDate: sat }),
+      DB.getDonations({ startDate: sun, endDate: sat }),
+    ]);
+    setData({
+      present: att.length,
+      newDevotees: att.filter(a => a.is_new_devotee).length,
+      books: books.reduce((s, b) => s + (Number(b.quantity) || 0), 0),
+      services: services.length,
+      registrations: registrations.reduce((s, r) => s + (Number(r.count) || 0), 0),
+      donations: donations.reduce((s, d) => s + (Number(d.amount) || 0), 0),
+    });
+    setLoading(false);
   }
 
-  async function deleteEvent(id) {
-    if (!confirm('Delete this event?')) return;
-    await DB.deleteEvent(id);
-    showToast('Event deleted', 'info');
-    DB.getEvents().then(setEvents);
-  }
+  if (loading) return <div className="loading-spinner" />;
+  if (!data) return null;
+
+  const kpis = [
+    { label: 'Present', value: data.present, icon: '✓' },
+    { label: 'New Comers', value: data.newDevotees, icon: '⭐' },
+    { label: 'Books', value: data.books, icon: '📚' },
+    { label: 'Service', value: data.services, icon: '🤲' },
+    { label: 'Donations', value: formatINR(data.donations), icon: '💰' },
+  ];
 
   return (
-    <div className="events-section">
-      <div className="section-header">
-        <h3 className="section-title">Events</h3>
-        {isSuper && <button className="btn-primary sm" onClick={() => { setEditEvent(null); setForm({ event_name: '', event_date: '', description: '' }); setShowForm(true); }}>+ Event</button>}
-      </div>
-
-      {events.length === 0 ? (
-        <div className="empty-state">No events scheduled</div>
-      ) : events.map(e => (
-        <div key={e.id} className="event-card">
-          <div className="event-card-body">
-            <div className="event-name">{e.event_name}</div>
-            <div className="event-date">{formatDate(e.event_date)}</div>
-            {e.description && <div className="event-desc text-muted">{e.description}</div>}
-          </div>
-          {isSuper && (
-            <div className="event-actions">
-              <button className="btn-icon" onClick={() => { setEditEvent(e); setForm({ event_name: e.event_name, event_date: e.event_date, description: e.description || '' }); setShowForm(true); }}>✏</button>
-              <button className="btn-icon danger" onClick={() => deleteEvent(e.id)}>🗑</button>
-            </div>
-          )}
+    <div className="dashboard-kpis">
+      {kpis.map(k => (
+        <div key={k.label} className="kpi-card">
+          <div className="kpi-icon">{k.icon}</div>
+          <div className="kpi-value">{k.value}</div>
+          <div className="kpi-label">{k.label}</div>
         </div>
       ))}
-
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editEvent ? 'Edit Event' : 'New Event'}>
-        <div className="form-group"><label className="form-label">Event Name *</label><input className="form-input" value={form.event_name} onChange={e => setForm(f => ({ ...f, event_name: e.target.value }))} /></div>
-        <div className="form-group"><label className="form-label">Date</label><input className="form-input" type="date" value={form.event_date} onChange={e => setForm(f => ({ ...f, event_date: e.target.value }))} /></div>
-        <div className="form-group"><label className="form-label">Description</label><textarea className="form-textarea" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
-        <div className="form-actions">
-          <button className="btn-outline" onClick={() => setShowForm(false)}>Cancel</button>
-          <button className="btn-primary" onClick={saveEvent}>Save</button>
-        </div>
-      </Modal>
     </div>
   );
 }
 
-// ── Main HomePage ─────────────────────────────────────────────────────────────
+// ── Main HomePage ───────────────────────────────────────────────────────────
 export default function HomePage() {
   const { userName, isSuper } = useAuth();
-  const { filters } = useApp();
   const [showSessionConfig, setShowSessionConfig] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [sessionDate, setSessionDate] = useState('');
-  const [config, setConfig] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  const [birthdays, setBirthdays] = useState([]);
+  const [showBirthdays, setShowBirthdays] = useState(false);
 
   useEffect(() => {
     async function init() {
-      const s = await DB.getTodaySession();
+      const [s, c, bd] = await Promise.all([
+        DB.getTodaySession(),
+        DB.getCallingWeekConfig(),
+        DB.getCareBirthdays(),
+      ]);
       setSessionId(s.id);
       setSessionDate(s.session_date);
-      const cfg = await DB.getCallingWeekConfig();
-      setConfig(cfg);
+      setCfg(c);
+      if (bd.length) { setBirthdays(bd); setShowBirthdays(true); }
     }
     init();
   }, []);
@@ -205,30 +174,25 @@ export default function HomePage() {
 
   return (
     <div className="tab-page">
+      <BirthdayPopup list={birthdays} onClose={() => setShowBirthdays(false)} />
+
       <div className="home-greeting">
         <h2 className="greeting-text">Hare Krishna, {firstName}! 🙏</h2>
-        {config && (
+        {cfg && (
           <div className="session-chip">
-            Next: {formatDate(config.sessionDate || config.session_date)}
-            {config.topic && ` · ${config.topic}`}
+            {cfg.topic && <span>📖 {cfg.topic}</span>}
+            {cfg.sessionDate && <span> · {formatDate(cfg.sessionDate || cfg.session_date)}</span>}
+            {cfg.sessionType === 'festival' && <span> · 🎉 Festival</span>}
           </div>
         )}
-        {isSuper && (
-          <button className="btn-outline sm" onClick={() => setShowSessionConfig(true)}>⚙ Configure Session</button>
-        )}
+        <div className="home-actions">
+          {isSuper && <button className="btn-outline sm" onClick={() => setShowSessionConfig(true)}>⚙ Configure Session</button>}
+          {birthdays.length > 0 && <button className="btn-outline sm" onClick={() => setShowBirthdays(true)}>🎂 {birthdays.length} Birthday{birthdays.length > 1 ? 's' : ''}</button>}
+        </div>
       </div>
 
-      {/* Quick stat cards */}
-      {sessionId && (
-        <div className="home-cards-row">
-          <AttendanceCard sessionId={sessionId} sessionDate={sessionDate} />
-        </div>
-      )}
+      {sessionId && <DashboardKPIs sessionId={sessionId} sessionDate={sessionDate} />}
 
-      {/* Events */}
-      <EventsSection />
-
-      {/* Session config modal */}
       {isSuper && <SessionConfig open={showSessionConfig} onClose={() => setShowSessionConfig(false)} />}
     </div>
   );
