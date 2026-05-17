@@ -413,6 +413,31 @@ input, select, textarea { font-family: inherit; }
 .hidden { display: none !important; }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
+/* Calling enhancements */
+.calling-toolbar { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
+.locked-banner { padding: 8px 14px; border-radius: var(--radius-md); font-size: .82rem; font-weight: 600; margin-bottom: 12px; }
+.locked-banner.amber { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+.locked-banner.gray  { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+.locked-banner.red   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.session-info-chip { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 7px 12px; background: #fffde7; border: 1px solid #f5c518; border-radius: var(--radius-md); font-size: .8rem; margin-bottom: 10px; }
+.chip-topic { font-weight: 700; }
+.chip-festival { color: #7c3aed; }
+.calling-table.sm td, .calling-table.sm th { padding: 5px 6px; font-size: .78rem; }
+.team-calling-block { margin-bottom: 20px; }
+.team-calling-header { font-size: .88rem; font-weight: 700; padding: 8px 12px; background: #f5c518; border-radius: var(--radius-md); margin-bottom: 6px; }
+.caller-block { margin-bottom: 12px; padding: 10px; background: white; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.caller-header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; font-size: .85rem; }
+.report-type-toggle { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.active-toggle { background: #f5c518 !important; border-color: #d4a900 !important; color: #1a1a1a !important; font-weight: 700; }
+.grand-total-row td { background: #1a1a1a; color: white; font-weight: 700; }
+.caller-detail-row td { background: #fffde7; font-size: .8rem; }
+.stat-pill.red    { border-color: var(--color-danger); color: var(--color-danger); }
+.stat-pill.red.active { background: var(--color-danger); color: white; }
+.stat-pill.blue   { border-color: var(--color-info); color: var(--color-info); }
+.stat-pill.blue.active { background: var(--color-info); color: white; }
+.stat-pill.purple { border-color: #7c3aed; color: #7c3aed; }
+.stat-pill.purple.active { background: #7c3aed; color: white; }
+
 /* Event roster */
 .event-roster-header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .event-roster-header h3 { font-size: 1rem; font-weight: 700; }
