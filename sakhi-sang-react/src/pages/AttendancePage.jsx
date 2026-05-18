@@ -9,6 +9,8 @@ import {
 } from '../utils/helpers';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend } from 'chart.js';
+import FAB from '../components/common/FAB';
+import Modal from '../components/common/Modal';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
 // ── Live Attendance ─────────────────────────────────────────────────────────
@@ -405,6 +407,7 @@ export default function AttendancePage() {
       )}
       {loading ? <div className="loading-spinner" /> : (
         <>
+          {view === 'live' && <FAB icon="+" label="Register" onClick={() => alert('To register a brand-new devotee, please use the Devotees tab.')} />}
           {view === 'live'       && <LivePanel sessionId={sessionId} sessionDate={sessionDate} />}
           {view === 'sheet'      && <SheetPanel />}
           {view === 'leaderboard'&& <LeaderboardPanel sessionId={sessionId} sessionDate={sessionDate} />}

@@ -24,7 +24,10 @@ export default function FilterRibbon() {
       setSessionsCache(s);
       setCallingPersonsCache(c);
       if (s.length && !filters.sessionId) {
-        dispatchFilters({ sessionId: s[0].id, sessionDate: s[0].session_date });
+        // Auto-snap to most recent past or today's session
+        const today = new Date().toISOString().slice(0, 10);
+        const past = s.find(x => x.session_date <= today) || s[0];
+        dispatchFilters({ sessionId: past.id, sessionDate: past.session_date });
       }
       if (teamLocked && !filters.team) {
         dispatchFilters({ team: userTeam });

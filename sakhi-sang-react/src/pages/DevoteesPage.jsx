@@ -6,6 +6,9 @@ import { TEAMS } from '../firebase/config';
 import { avatarInitials, formatDate, isBirthdayThisWeek, statusBadge } from '../utils/helpers';
 import Modal from '../components/common/Modal';
 import DevoteePicker from '../components/common/DevoteePicker';
+import FAB from '../components/common/FAB';
+import ProfileGauge, { calcProfileCompletion } from '../components/common/ProfileGauge';
+import { ProfileHistoryModal, CallingHistoryModal } from '../components/common/DevoteeHistoryModals';
 
 // ── DevoteeItem card ───────────────────────────────────────────────────────────
 function DevoteeItem({ d, onOpen }) {
@@ -36,8 +39,8 @@ function DevoteeItem({ d, onOpen }) {
 function ProfileModal({ devoteeId, onClose, onEdit }) {
   const [d, setD] = useState(null);
   const [activeTab, setActiveTab] = useState('identity');
-  const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showProfileHistory, setShowProfileHistory] = useState(false);
+  const [showCallingHistory, setShowCallingHistory] = useState(false);
   const [referredList, setReferredList] = useState([]);
   const { isSuper, isTeamAdmin } = useAuth();
 
@@ -46,12 +49,6 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
     setD(null); setActiveTab('identity');
     DB.getDevotee(devoteeId).then(setD);
   }, [devoteeId]);
-
-  async function loadHistory() {
-    const h = await DB.getProfileHistory(devoteeId);
-    setHistory(h);
-    setShowHistory(true);
-  }
 
   async function loadReferred() {
     const all = await DB.getDevotees({ search: '' });
@@ -92,6 +89,10 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
           </div>
           {d.mobile && <div className="profile-hero-contact">📱 {d.mobile} {d.mobile_alt && ` · ${d.mobile_alt}`}</div>}
           <div className="profile-hero-stats">AT: {d.lifetime_attendance || 0} · CR: {d.chanting_rounds || 0}/day</div>
+        </div>
+        <div className="profile-gauge-wrap">
+          <ProfileGauge pct={calcProfileCompletion(d)} size={68} />
+          <div className="profile-gauge-label">Complete</div>
         </div>
       </div>
 
@@ -172,31 +173,16 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
       {/* Actions */}
       <div className="profile-actions">
         {isTeamAdmin && <button className="btn-primary" onClick={() => onEdit(d.id)}>✏ Edit</button>}
-        <button className="btn-outline" onClick={loadHistory}>🕑 History</button>
+        <button className="btn-outline" onClick={() => setShowCallingHistory(true)}>📞 Calling History</button>
+        <button className="btn-outline" onClick={() => setShowProfileHistory(true)}>🕑 Profile Changes</button>
         {d.mobile && <a href={`tel:${d.mobile}`} className="btn-outline">📞 Call</a>}
+        {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-outline" target="_blank" rel="noreferrer">💬 WhatsApp</a>}
+        {isSuper && <button className="btn-outline" onClick={handleNotInterested}>✕ Not Interested</button>}
         {isSuper && <button className="btn-danger" onClick={handleDelete}>🗑 Delete</button>}
-        {isSuper && <button className="btn-outline" onClick={handleNotInterested}>Not Interested</button>}
       </div>
 
-      {/* History modal */}
-      <Modal open={showHistory} onClose={() => setShowHistory(false)} title="Change History" size="md">
-        {history.length === 0 ? <div className="empty-state">No history</div> : (
-          <table className="simple-table">
-            <thead><tr><th>Field</th><th>Old</th><th>New</th><th>By</th><th>When</th></tr></thead>
-            <tbody>
-              {history.map((h, i) => (
-                <tr key={i}>
-                  <td>{h.field}</td>
-                  <td className="text-muted">{h.oldValue || '—'}</td>
-                  <td>{h.newValue || '—'}</td>
-                  <td>{h.changedBy || '—'}</td>
-                  <td>{h.changedAt ? new Date(h.changedAt.toDate?.() || h.changedAt).toLocaleDateString('en-IN') : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Modal>
+      <ProfileHistoryModal open={showProfileHistory} devoteeId={devoteeId} onClose={() => setShowProfileHistory(false)} />
+      <CallingHistoryModal open={showCallingHistory} devoteeId={devoteeId} devoteeName={d.name} onClose={() => setShowCallingHistory(false)} />
     </div>
   );
 }
@@ -479,6 +465,9 @@ export default function DevoteesPage() {
       <Modal open={showForm} onClose={() => setShowForm(false)} title={editId ? 'Edit Devotee' : 'Add Devotee'} size="lg">
         {showForm && <DevoteeForm editId={editId} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); load(); }} />}
       </Modal>
+
+      {/* FAB for adding a new devotee — visible to coordinators+ */}
+      {isTeamAdmin && <FAB icon="+" label="New Devotee" onClick={openNew} />}
     </div>
   );
 }

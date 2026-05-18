@@ -8,6 +8,7 @@ import UserManagement from '../admin/UserManagement';
 import SignupRequests from '../admin/SignupRequests';
 import ClearDataModal from '../admin/ClearDataModal';
 import SessionManagement from '../admin/SessionManagement';
+import PersonalMeetings from '../admin/PersonalMeetings';
 import { TEAMS } from '../../firebase/config';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/config';
@@ -27,6 +28,7 @@ export default function Sidebar({ open, onClose }) {
   const [showSessionConfig, setShowSessionConfig] = useState(false);
   const [showTargets, setShowTargets] = useState(false);
   const [showTeamRename, setShowTeamRename] = useState(false);
+  const [showPersonalMeetings, setShowPersonalMeetings] = useState(false);
 
   useEffect(() => {
     if (!isSuper) return;
@@ -90,6 +92,9 @@ export default function Sidebar({ open, onClose }) {
                 )}
               </div>
 
+              <button className="sidebar-item" onClick={() => { setShowPersonalMeetings(true); close(); }}>
+                <span>🤝</span><span>Personal Meetings</span>
+              </button>
               <button className="sidebar-item" onClick={() => { setShowTeamRename(true); close(); }}>
                 <span>🔄</span><span>Rename Team</span>
               </button>
@@ -122,6 +127,7 @@ export default function Sidebar({ open, onClose }) {
       {isSuper && <SessionConfigModal open={showSessionConfig} onClose={() => setShowSessionConfig(false)} />}
       {isSuper && <TargetMgmtModal open={showTargets} onClose={() => setShowTargets(false)} />}
       {isSuper && <TeamRenameModal open={showTeamRename} onClose={() => setShowTeamRename(false)} />}
+      {isSuper && <PersonalMeetings open={showPersonalMeetings} onClose={() => setShowPersonalMeetings(false)} />}
     </>
   );
 }
