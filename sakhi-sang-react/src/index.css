@@ -49,8 +49,9 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 input, select, textarea { font-family: inherit; }
 
 /* ── App shell ────────────────────────────────────────────────────────────── */
-.app-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-.main-content { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 80px; }
+.app-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; background: #fafafa; }
+.main-content { flex: 1; overflow-y: auto; padding: 18px 22px; padding-bottom: 80px; }
+.tab-page { max-width: 1240px; margin: 0 auto; }
 
 /* Loading screen */
 .app-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100dvh; gap: 12px; background: var(--bg); }
@@ -92,11 +93,11 @@ input, select, textarea { font-family: inherit; }
 @keyframes dropIn { from { opacity:0; transform:translateY(-6px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
 
 /* ── Breadcrumb trail ──────────────────────────────────────────────────── */
-.breadcrumb-trail { display: flex; align-items: center; gap: 4px; padding: 5px 16px; background: #fffde7; border-bottom: 1px solid #f5c518; font-size: .75rem; flex-shrink: 0; min-height: 30px; }
-.breadcrumb-item { color: #b8860b; font-weight: 600; background: none; border: none; cursor: pointer; padding: 1px 3px; border-radius: 3px; }
-.breadcrumb-item:hover { background: rgba(245,197,24,.2); }
-.breadcrumb-sep { color: var(--text-light); }
-.breadcrumb-current { color: var(--text); font-weight: 700; }
+.breadcrumb-trail { display: flex; align-items: center; gap: 6px; padding: 6px 18px; background: linear-gradient(180deg,#fffde7 0%,#fffaeb 100%); border-bottom: 1px solid #fde68a; font-size: .76rem; flex-shrink: 0; min-height: 32px; }
+.breadcrumb-item { color: #b8860b; font-weight: 600; background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background .12s; }
+.breadcrumb-item:hover { background: rgba(245,197,24,.25); }
+.breadcrumb-sep { color: var(--text-light); font-size: .85rem; }
+.breadcrumb-current { color: var(--text); font-weight: 700; padding: 2px 4px; }
 
 /* ── Bottom nav — scrollable with arrows ───────────────────────────────── */
 .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 2px solid #f5c518; z-index: 90; flex-shrink: 0; align-items: center; padding: 0; height: calc(52px + env(safe-area-inset-bottom)); }
@@ -121,7 +122,7 @@ input, select, textarea { font-family: inherit; }
 .bottom-nav-label { font-size: .6rem; }
 
 /* ── Filter Ribbon ────────────────────────────────────────────────────────── */
-.filter-ribbon { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px; background: #fffde7; border-bottom: 1px solid #f5c518; min-height: var(--ribbon-h); flex-shrink: 0; }
+.filter-ribbon { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 18px; background: white; border-bottom: 1px solid var(--border); min-height: var(--ribbon-h); flex-shrink: 0; }
 .fr-chip-wrap { position: relative; }
 .fr-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border: 1.5px solid #d4a900; border-radius: var(--radius-full); font-size: .78rem; font-weight: 600; color: #1a1a1a; background: white; cursor: pointer; transition: all .12s; }
 .fr-chip:hover { border-color: #f5c518; background: #fffde7; }
@@ -227,6 +228,12 @@ input, select, textarea { font-family: inherit; }
 .loading-spinner { width: 32px; height: 32px; border: 3px solid #fde68a; border-top-color: #f5c518; border-radius: 50%; animation: spin 1s linear infinite; margin: 32px auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: .88rem; }
+
+/* Error state */
+.error-state { text-align: center; padding: 40px 20px; background: white; border-radius: var(--radius-lg); border: 1px solid #fde68a; max-width: 480px; margin: 32px auto; }
+.error-icon { font-size: 2.5rem; margin-bottom: 8px; }
+.error-state h3 { font-size: 1rem; font-weight: 700; color: var(--color-danger); margin-bottom: 8px; }
+.error-state p { margin-bottom: 16px; font-size: .82rem; }
 
 /* ── Badges ───────────────────────────────────────────────────────────────── */
 .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full); font-size: .72rem; font-weight: 600; }

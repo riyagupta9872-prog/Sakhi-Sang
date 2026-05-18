@@ -13,10 +13,20 @@ const CACHE_TTL = 90000;
 
 async function getCache() {
   if (_cache && Date.now() - _cacheAt < CACHE_TTL) return _cache;
-  const snap = await getDocs(query(collection(db, 'devotees'), where('isActive', '!=', false)));
-  _cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  _cacheAt = Date.now();
-  return _cache;
+  try {
+    // Fetch ALL devotees — filter is_active in memory (works for docs missing the field)
+    const snap = await getDocs(collection(db, 'devotees'));
+    _cache = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(d => d.isActive !== false && d.is_active !== false);
+    _cacheAt = Date.now();
+    return _cache;
+  } catch (err) {
+    console.error('getCache error:', err);
+    _cache = [];
+    _cacheAt = Date.now();
+    return _cache;
+  }
 }
 
 export function bustCache() { _cache = null; }
@@ -210,10 +220,17 @@ export const DB = {
   },
 
   async getProfileHistory(id) {
-    const snap = await getDocs(
-      query(collection(db, 'profileChanges'), where('devoteeId', '==', id), orderBy('changedAt', 'desc'))
-    );
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      // Avoid composite index: filter only, sort in memory
+      const snap = await getDocs(query(collection(db, 'profileChanges'), where('devoteeId', '==', id)));
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => {
+        const ta = a.changedAtClient || a.changedAt?.toDate?.()?.toISOString() || '';
+        const tb = b.changedAtClient || b.changedAt?.toDate?.()?.toISOString() || '';
+        return tb.localeCompare(ta);
+      });
+      return docs;
+    } catch (err) { console.error('getProfileHistory:', err); return []; }
   },
 
   async importDevotees(rows, mode = 'add') {
@@ -251,38 +268,49 @@ export const DB = {
 
   // ── Sessions ────────────────────────────────────────────────────────────────
   async getTodaySession() {
-    const todayStr = toLocalDateStr();
-    const snap = await getDocs(
-      query(collection(db, 'sessions'), orderBy('session_date', 'desc'), limit(1))
-    );
-    if (snap.empty) {
-      const sun = snapToSunday(todayStr);
-      const ref = await addDoc(collection(db, 'sessions'), { session_date: sun, is_cancelled: false });
-      return { id: ref.id, session_date: sun };
-    }
-    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    try {
+      const snap = await getDocs(collection(db, 'sessions'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.session_date || '').localeCompare(a.session_date || ''));
+      if (list.length === 0) {
+        const sun = snapToSunday(toLocalDateStr());
+        const ref = await addDoc(collection(db, 'sessions'), { session_date: sun, is_cancelled: false });
+        return { id: ref.id, session_date: sun };
+      }
+      return list[0];
+    } catch (err) { console.error('getTodaySession:', err); return { id: '', session_date: toLocalDateStr() }; }
   },
 
   async getOrCreateSession(dateStr) {
     const sun = snapToSunday(dateStr);
-    const snap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sun)));
-    if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
-    const ref = await addDoc(collection(db, 'sessions'), { session_date: sun, is_cancelled: false });
-    return { id: ref.id, session_date: sun };
+    try {
+      const snap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sun)));
+      if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
+      const ref = await addDoc(collection(db, 'sessions'), { session_date: sun, is_cancelled: false });
+      return { id: ref.id, session_date: sun };
+    } catch (err) { console.error('getOrCreateSession:', err); return { id: '', session_date: sun }; }
   },
 
   async getSessions() {
-    const snap = await getDocs(query(collection(db, 'sessions'), orderBy('session_date', 'desc'), limit(52)));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'sessions'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.session_date || '').localeCompare(a.session_date || ''));
+      return list.slice(0, 52);
+    } catch (err) { console.error('getSessions:', err); return []; }
   },
 
   async getSessionsWithPresent() {
-    const sessions = await this.getSessions();
-    const results = await Promise.all(sessions.map(async s => {
-      const att = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s.id)));
-      return { ...s, present: att.size };
-    }));
-    return results;
+    try {
+      const sessions = await this.getSessions();
+      const results = await Promise.all(sessions.map(async s => {
+        try {
+          const att = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s.id)));
+          return { ...s, present: att.size };
+        } catch { return { ...s, present: 0 }; }
+      }));
+      return results;
+    } catch (err) { console.error('getSessionsWithPresent:', err); return []; }
   },
 
   async configureSunday(sessionId, { topic, isCancelled }) {
@@ -290,10 +318,16 @@ export const DB = {
   },
 
   async getSessionStats(sessionId) {
-    const att = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
-    const present = att.size;
-    const newDevotees = att.docs.filter(d => d.data().is_new_devotee).length;
-    return { present, newDevotees, confirmed: 0, totalPresent: present };
+    if (!sessionId) return { present: 0, newDevotees: 0, confirmed: 0, totalPresent: 0 };
+    try {
+      const att = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
+      return {
+        present: att.size,
+        newDevotees: att.docs.filter(d => d.data().is_new_devotee).length,
+        confirmed: 0,
+        totalPresent: att.size,
+      };
+    } catch (err) { console.error('getSessionStats:', err); return { present: 0, newDevotees: 0, confirmed: 0, totalPresent: 0 }; }
   },
 
   // ── Attendance ──────────────────────────────────────────────────────────────
@@ -357,20 +391,26 @@ export const DB = {
   },
 
   async getSessionAttendance(sessionId) {
-    const snap = await getDocs(
-      query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId), orderBy('marked_at', 'desc'))
-    );
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!sessionId) return [];
+    try {
+      const snap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.marked_at_client || '').localeCompare(a.marked_at_client || ''));
+      return list;
+    } catch (err) { console.error('getSessionAttendance:', err); return []; }
   },
 
   async getSheetData(yearStart, yearEnd) {
+    try {
     const [sessSnap, devList, attSnap, csSnap] = await Promise.all([
-      getDocs(query(collection(db, 'sessions'), where('session_date', '>=', yearStart), where('session_date', '<=', yearEnd), orderBy('session_date'))),
+      getDocs(collection(db, 'sessions')),
       getCache(),
-      getDocs(query(collection(db, 'attendanceRecords'))),
-      getDocs(query(collection(db, 'callingStatus'))),
+      getDocs(collection(db, 'attendanceRecords')),
+      getDocs(collection(db, 'callingStatus')),
     ]);
-    const sessions = sessSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const sessions = sessSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(s => s.session_date >= yearStart && s.session_date <= yearEnd)
+      .sort((a, b) => (a.session_date || '').localeCompare(b.session_date || ''));
     const attMap = {};
     attSnap.docs.forEach(d => {
       const dat = d.data();
@@ -384,12 +424,15 @@ export const DB = {
       csMap[dat.week_date][dat.devotee_id] = dat.coming_status || dat.comingStatus || '';
     });
     return { sessions, devotees: devList.map(toSnake), attMap, csMap };
+    } catch (err) { console.error('getSheetData:', err); return { sessions: [], devotees: [], attMap: {}, csMap: {} }; }
   },
 
   // ── Calling status ──────────────────────────────────────────────────────────
   async getCallingWeekConfig() {
-    const snap = await getDoc(doc(db, 'settings', 'callingWeekConfig'));
-    return snap.exists() ? snap.data() : null;
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'callingWeekConfig'));
+      return snap.exists() ? snap.data() : null;
+    } catch (err) { console.error('getCallingWeekConfig:', err); return null; }
   },
 
   async setCallingWeekConfig(callingDate, sessionDate, extra = {}) {
@@ -399,14 +442,43 @@ export const DB = {
   },
 
   async getTeamCallingStatus(weekDate, userRole, userTeam) {
-    const snap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate)));
-    let devotees = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (userRole === 'teamAdmin') {
-      devotees = devotees.filter(d => (d.team_name || d.teamName) === userTeam);
+    if (!weekDate) {
+      // No week configured yet — return all active devotees so list isn't empty
+      const all = await getCache();
+      const devs = all.map(d => ({
+        id: d.id, devotee_id: d.id, devotee_name: d.name || '',
+        name: d.name, mobile: d.mobile, dob: d.dob,
+        team_name: d.teamName || d.team_name || '',
+        calling_by: d.callingBy || d.calling_by || '',
+      }));
+      const filtered = userRole === 'teamAdmin'
+        ? devs.filter(d => d.team_name === userTeam) : devs;
+      return { devotees: filtered, submittedCallers: new Set() };
     }
-    const subSnap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate)));
-    const submittedCallers = new Set(subSnap.docs.map(d => d.data().user_name || d.data().userName));
-    return { devotees, submittedCallers };
+    try {
+      const [snap, subSnap, allDevs] = await Promise.all([
+        getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate))),
+        getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate))),
+        getCache(),
+      ]);
+
+      // If no calling-status docs yet for this week, seed from devotee list
+      let devotees = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (devotees.length === 0) {
+        devotees = allDevs.map(d => ({
+          id: d.id, devotee_id: d.id, devotee_name: d.name || '',
+          name: d.name, mobile: d.mobile, dob: d.dob,
+          team_name: d.teamName || d.team_name || '',
+          calling_by: d.callingBy || d.calling_by || '',
+          coming_status: '', calling_reason: '', calling_notes: '',
+        }));
+      }
+      if (userRole === 'teamAdmin') {
+        devotees = devotees.filter(d => (d.team_name || d.teamName) === userTeam);
+      }
+      const submittedCallers = new Set(subSnap.docs.map(d => d.data().user_name || d.data().userName));
+      return { devotees, submittedCallers };
+    } catch (err) { console.error('getTeamCallingStatus:', err); return { devotees: [], submittedCallers: new Set() }; }
   },
 
   async updateCallingStatus(devoteeId, weekDate, data) {
@@ -443,23 +515,30 @@ export const DB = {
   async getCallingSubmissions(weekDates) {
     const result = {};
     for (const wd of weekDates) {
-      const snap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', wd)));
       result[wd] = {};
-      snap.docs.forEach(d => {
-        const dat = d.data();
-        result[wd][dat.user_name || dat.userName] = dat;
-      });
+      try {
+        const snap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', wd)));
+        snap.docs.forEach(d => {
+          const dat = d.data();
+          result[wd][dat.user_name || dat.userName] = dat;
+        });
+      } catch (err) { console.error('getCallingSubmissions for', wd, err); }
     }
     return result;
   },
 
   async getMyCallingSubmission(weekDate, userId) {
-    const docId = `${userId}_${weekDate}`;
-    const snap = await getDoc(doc(db, 'callingSubmissions', docId));
-    return snap.exists() ? snap.data() : null;
+    if (!weekDate || !userId) return null;
+    try {
+      const docId = `${userId}_${weekDate}`;
+      const snap = await getDoc(doc(db, 'callingSubmissions', docId));
+      return snap.exists() ? snap.data() : null;
+    } catch (err) { console.error('getMyCallingSubmission:', err); return null; }
   },
 
   async getCallingReport(weekDate) {
+    if (!weekDate) return {};
+    try {
     const csSnap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate)));
     const subSnap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate)));
     const sessionDate = shiftDate(weekDate, 1);
@@ -487,6 +566,7 @@ export const DB = {
       if (attSet.has(dat.devotee_id)) r.came++;
     }
     return report;
+    } catch (err) { console.error('getCallingReport:', err); return {}; }
   },
 
   async getCallingHistoryGrid(teamFilter, callerFilter) {
@@ -503,13 +583,12 @@ export const DB = {
   },
 
   async getCallingHistory(devoteeId, weeksBefore = 4) {
-    const snap = await getDocs(
-      query(collection(db, 'callingStatus'),
-        where('devotee_id', '==', devoteeId),
-        orderBy('week_date', 'desc'),
-        limit(weeksBefore))
-    );
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(query(collection(db, 'callingStatus'), where('devotee_id', '==', devoteeId)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.week_date || '').localeCompare(a.week_date || ''));
+      return list.slice(0, weeksBefore);
+    } catch (err) { console.error('getCallingHistory:', err); return []; }
   },
 
   async getSubmissionReport() {
@@ -535,73 +614,92 @@ export const DB = {
   },
 
   async getYesAbsentList(callingDate, sessionDate) {
-    const csSnap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', callingDate)));
-    const yesDevotees = csSnap.docs.filter(d => (d.data().coming_status || d.data().comingStatus) === 'Yes').map(d => d.data());
-    if (!sessionDate) return { hasSession: false, list: yesDevotees };
-    const sessSnap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sessionDate)));
-    if (sessSnap.empty) return { hasSession: false, list: yesDevotees };
-    const sessionId = sessSnap.docs[0].id;
-    const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
-    const attSet = new Set(attSnap.docs.map(d => d.data().devotee_id));
-    const list = yesDevotees.filter(d => !attSet.has(d.devotee_id || d.devoteeId));
-    return { hasSession: true, list };
+    if (!callingDate) return { hasSession: false, list: [] };
+    try {
+      const csSnap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', callingDate)));
+      const yesDevotees = csSnap.docs.filter(d => (d.data().coming_status || d.data().comingStatus) === 'Yes').map(d => d.data());
+      if (!sessionDate) return { hasSession: false, list: yesDevotees };
+      const sessSnap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sessionDate)));
+      if (sessSnap.empty) return { hasSession: false, list: yesDevotees };
+      const sessionId = sessSnap.docs[0].id;
+      const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
+      const attSet = new Set(attSnap.docs.map(d => d.data().devotee_id));
+      const list = yesDevotees.filter(d => !attSet.has(d.devotee_id || d.devoteeId));
+      return { hasSession: true, list };
+    } catch (err) { console.error('getYesAbsentList:', err); return { hasSession: false, list: [] }; }
   },
 
   // ── Care ───────────────────────────────────────────────────────────────────
   async getCareAbsent() {
-    const sessions = await this.getSessions();
-    if (sessions.length < 2) return { absentThisWeek: [], absentPast2Weeks: [] };
-    const [s1, s2] = sessions;
-    const [att1, att2] = await Promise.all([
-      getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s1.id))),
-      getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s2.id))),
-    ]);
-    const present1 = new Set(att1.docs.map(d => d.data().devotee_id));
-    const present2 = new Set(att2.docs.map(d => d.data().devotee_id));
-    const all = await this.getDevotees({});
-    const active = all.filter(d => d.is_active !== false && d.calling_mode !== 'not_interested');
-    return {
-      absentThisWeek: active.filter(d => !present1.has(d.id)),
-      absentPast2Weeks: active.filter(d => !present1.has(d.id) && !present2.has(d.id)),
-    };
+    try {
+      const sessions = await this.getSessions();
+      if (sessions.length < 2) return { absentThisWeek: [], absentPast2Weeks: [] };
+      const [s1, s2] = sessions;
+      const [att1, att2] = await Promise.all([
+        getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s1.id))),
+        getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s2.id))),
+      ]);
+      const present1 = new Set(att1.docs.map(d => d.data().devotee_id));
+      const present2 = new Set(att2.docs.map(d => d.data().devotee_id));
+      const all = await this.getDevotees({});
+      const active = all.filter(d => d.is_active !== false && d.calling_mode !== 'not_interested');
+      return {
+        absentThisWeek: active.filter(d => !present1.has(d.id)),
+        absentPast2Weeks: active.filter(d => !present1.has(d.id) && !present2.has(d.id)),
+      };
+    } catch (err) { console.error('getCareAbsent:', err); return { absentThisWeek: [], absentPast2Weeks: [] }; }
   },
 
   async getCareInactive() {
-    const sessions = await this.getSessions();
-    const recent3 = sessions.slice(0, 3);
-    const attSets = await Promise.all(recent3.map(s =>
-      getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s.id)))
-        .then(snap => new Set(snap.docs.map(d => d.data().devotee_id)))
-    ));
-    const all = await this.getDevotees({});
-    return all.filter(d => d.is_active !== false && attSets.every(s => !s.has(d.id)));
+    try {
+      const sessions = await this.getSessions();
+      const recent3 = sessions.slice(0, 3);
+      if (recent3.length === 0) return [];
+      const attSets = await Promise.all(recent3.map(s =>
+        getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', s.id)))
+          .then(snap => new Set(snap.docs.map(d => d.data().devotee_id)))
+          .catch(() => new Set())
+      ));
+      const all = await this.getDevotees({});
+      return all.filter(d => d.is_active !== false && attSets.every(s => !s.has(d.id)));
+    } catch (err) { console.error('getCareInactive:', err); return []; }
   },
 
   async getCareNewcomers() {
-    const sessions = await this.getSessions();
-    if (sessions.length < 1) return [];
-    const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessions[0].id), where('is_new_devotee', '==', true)));
-    const ids = attSnap.docs.map(d => d.data().devotee_id);
-    const all = await this.getDevotees({});
-    return all.filter(d => ids.includes(d.id));
+    try {
+      const sessions = await this.getSessions();
+      if (sessions.length < 1) return [];
+      // Avoid composite index: get all att for session then filter
+      const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessions[0].id)));
+      const ids = attSnap.docs.filter(d => d.data().is_new_devotee).map(d => d.data().devotee_id);
+      const all = await this.getDevotees({});
+      return all.filter(d => ids.includes(d.id));
+    } catch (err) { console.error('getCareNewcomers:', err); return []; }
   },
 
   async getCareBirthdays() {
-    const all = await this.getDevotees({});
-    const today = new Date();
-    return all.filter(d => {
-      if (!d.dob) return false;
-      const bday = new Date(d.dob);
-      const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
-      const diff = (thisYear - today) / 86400000;
-      return diff >= -1 && diff <= 6;
-    });
+    try {
+      const all = await this.getDevotees({});
+      const today = new Date();
+      return all.filter(d => {
+        if (!d.dob) return false;
+        const bday = new Date(d.dob);
+        if (isNaN(bday)) return false;
+        const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+        const diff = (thisYear - today) / 86400000;
+        return diff >= -1 && diff <= 6;
+      });
+    } catch (err) { console.error('getCareBirthdays:', err); return []; }
   },
 
   // ── Personal Meetings ──────────────────────────────────────────────────────
   async getPersonalMeetings() {
-    const snap = await getDocs(query(collection(db, 'personalMeetings'), orderBy('scheduledDate', 'desc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'personalMeetings'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.scheduledDate || '').localeCompare(a.scheduledDate || ''));
+      return list;
+    } catch (err) { console.error('getPersonalMeetings:', err); return []; }
   },
 
   async addPersonalMeeting(data) {
@@ -619,8 +717,12 @@ export const DB = {
 
   // ── Events ─────────────────────────────────────────────────────────────────
   async getEvents() {
-    const snap = await getDocs(query(collection(db, 'events'), orderBy('event_date', 'desc')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'events'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''));
+      return list;
+    } catch (err) { console.error('getEvents:', err); return []; }
   },
 
   async createEvent(data) {
@@ -641,8 +743,12 @@ export const DB = {
   },
 
   async getEventDevotees(eventId) {
-    const snap = await getDocs(query(collection(db, 'eventDevotees'), where('event_id', '==', eventId), orderBy('devotee_name')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(query(collection(db, 'eventDevotees'), where('event_id', '==', eventId)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (a.devotee_name || '').localeCompare(b.devotee_name || ''));
+      return list;
+    } catch (err) { console.error('getEventDevotees:', err); return []; }
   },
 
   async addEventDevotee(eventId, devotee) {
@@ -657,70 +763,40 @@ export const DB = {
   },
 
   // ── Activity logs ──────────────────────────────────────────────────────────
-  async addBookDistribution(data) {
-    await addDoc(collection(db, 'bookDistributions'), { ...data, createdAt: serverTimestamp() });
+  async _getActivities(colName, { startDate, endDate } = {}) {
+    try {
+      const snap = await getDocs(collection(db, colName));
+      let list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (startDate && endDate) list = list.filter(e => e.date >= startDate && e.date <= endDate);
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      return list.slice(0, 200);
+    } catch (err) { console.error(`get${colName}:`, err); return []; }
   },
-  async getBookDistributions({ startDate, endDate } = {}) {
-    let q = startDate && endDate
-      ? query(collection(db, 'bookDistributions'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
-      : query(collection(db, 'bookDistributions'), orderBy('date', 'desc'), limit(50));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
-
-  async addDonation(data) {
-    await addDoc(collection(db, 'donations'), { ...data, createdAt: serverTimestamp() });
-  },
-  async getDonations({ startDate, endDate } = {}) {
-    let q = startDate && endDate
-      ? query(collection(db, 'donations'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
-      : query(collection(db, 'donations'), orderBy('date', 'desc'), limit(50));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
-
-  async addRegistration(data) {
-    await addDoc(collection(db, 'registrations'), { ...data, createdAt: serverTimestamp() });
-  },
-  async getRegistrations({ startDate, endDate } = {}) {
-    let q = startDate && endDate
-      ? query(collection(db, 'registrations'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
-      : query(collection(db, 'registrations'), orderBy('date', 'desc'), limit(50));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
-
-  async addService(data) {
-    await addDoc(collection(db, 'services'), { ...data, createdAt: serverTimestamp() });
-  },
-  async getServices({ startDate, endDate } = {}) {
-    let q = startDate && endDate
-      ? query(collection(db, 'services'), where('date', '>=', startDate), where('date', '<=', endDate), orderBy('date', 'desc'))
-      : query(collection(db, 'services'), orderBy('date', 'desc'), limit(50));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
+  async addBookDistribution(data) { await addDoc(collection(db, 'bookDistributions'), { ...data, createdAt: serverTimestamp() }); },
+  async getBookDistributions(opts) { return this._getActivities('bookDistributions', opts); },
+  async addDonation(data)          { await addDoc(collection(db, 'donations'),         { ...data, createdAt: serverTimestamp() }); },
+  async getDonations(opts)         { return this._getActivities('donations', opts); },
+  async addRegistration(data)      { await addDoc(collection(db, 'registrations'),     { ...data, createdAt: serverTimestamp() }); },
+  async getRegistrations(opts)     { return this._getActivities('registrations', opts); },
+  async addService(data)           { await addDoc(collection(db, 'services'),          { ...data, createdAt: serverTimestamp() }); },
+  async getServices(opts)          { return this._getActivities('services', opts); },
 
   // ── Users & Auth ───────────────────────────────────────────────────────────
   async getUsers(search = '') {
-    const snap = await getDocs(collection(db, 'users'));
-    let list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(u => (u.displayName || u.name || '').toLowerCase().includes(q));
-    }
-    return list;
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      let list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (search) {
+        const q = search.toLowerCase();
+        list = list.filter(u => (u.displayName || u.name || '').toLowerCase().includes(q));
+      }
+      return list;
+    } catch (err) { console.error('getUsers:', err); return []; }
   },
 
   async getUsersForTeam(team, search = '') {
     const all = await this.getUsers(search);
     return team ? all.filter(u => (u.teamName || u.team_name || '') === team) : all;
-  },
-
-  // ── KEY FIX: check if ANY superAdmin exists, not just if users collection is empty ──
-  async hasSuperAdmin() {
-    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'superAdmin'), limit(1)));
-    return !snap.empty;
   },
 
   async createFirstUser(uid, displayName) {
@@ -734,8 +810,17 @@ export const DB = {
   },
 
   async getPendingSignups() {
-    const snap = await getDocs(query(collection(db, 'signupRequests'), where('status', '==', 'pending')));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(query(collection(db, 'signupRequests'), where('status', '==', 'pending')));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) { console.error('getPendingSignups:', err); return []; }
+  },
+
+  async hasSuperAdmin() {
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'superAdmin'), limit(1)));
+      return !snap.empty;
+    } catch (err) { console.error('hasSuperAdmin:', err); return false; }
   },
 
   async approveSignupRequest(requestId, uid, role, teamName, displayName) {
@@ -783,8 +868,10 @@ export const DB = {
   },
 
   async getAttendanceTargets() {
-    const snap = await getDoc(doc(db, 'settings', 'attendanceTargets'));
-    return snap.exists() ? snap.data() : { type: 'none', teams: {}, global: 0 };
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'attendanceTargets'));
+      return snap.exists() ? snap.data() : { type: 'none', teams: {}, global: 0 };
+    } catch (err) { console.error('getAttendanceTargets:', err); return { type: 'none', teams: {}, global: 0 }; }
   },
 
   async setAttendanceTargets(type, teams, global = 0) {
@@ -805,36 +892,40 @@ export const DB = {
   },
 
   async getTeamsReport(weekDate, sessionId) {
-    const devotees = await this.getDevotees({});
-    const csSnap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate)));
-    const attSnap = sessionId
-      ? await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)))
-      : { docs: [] };
-    const attSet = new Set(attSnap.docs.map(d => d.data().devotee_id));
-    const csMap = {};
-    csSnap.docs.forEach(d => { const dat = d.data(); csMap[dat.devotee_id || dat.devoteeId] = dat.coming_status || dat.comingStatus || ''; });
-    const targetSnap = await this.getAttendanceTargets();
-    const teams = {};
-    devotees.forEach(d => {
-      const t = d.team_name || 'Unknown';
-      if (!teams[t]) teams[t] = { team: t, total: 0, callingList: 0, target: 0, actualPresent: 0, percentage: 0 };
-      teams[t].total++;
-      if (csMap[d.id]) teams[t].callingList++;
-      if (attSet.has(d.id)) teams[t].actualPresent++;
-    });
-    return Object.values(teams).map(t => {
-      const target = targetSnap.teams?.[t.team] || targetSnap.global || 0;
-      return { ...t, target, percentage: target ? Math.round((t.actualPresent / target) * 100) : 0 };
-    });
+    try {
+      const devotees = await this.getDevotees({});
+      const [csSnap, attSnap, targets] = await Promise.all([
+        weekDate ? getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate))) : Promise.resolve({ docs: [] }),
+        sessionId ? getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId))) : Promise.resolve({ docs: [] }),
+        this.getAttendanceTargets(),
+      ]);
+      const attSet = new Set(attSnap.docs.map(d => d.data().devotee_id));
+      const csMap = {};
+      csSnap.docs.forEach(d => { const dat = d.data(); csMap[dat.devotee_id || dat.devoteeId] = dat.coming_status || dat.comingStatus || ''; });
+      const teams = {};
+      devotees.forEach(d => {
+        const t = d.team_name || 'Unknown';
+        if (!teams[t]) teams[t] = { team: t, total: 0, callingList: 0, target: 0, actualPresent: 0, percentage: 0 };
+        teams[t].total++;
+        if (csMap[d.id]) teams[t].callingList++;
+        if (attSet.has(d.id)) teams[t].actualPresent++;
+      });
+      return Object.values(teams).map(t => {
+        const target = targets.teams?.[t.team] || targets.global || 0;
+        return { ...t, target, percentage: target ? Math.round((t.actualPresent / target) * 100) : 0 };
+      });
+    } catch (err) { console.error('getTeamsReport:', err); return []; }
   },
 
   async getMgmtSeparateLists() {
-    const all = await getCache();
-    return {
-      online: all.filter(d => d.callingMode === 'online').map(toSnake),
-      festival: all.filter(d => d.callingMode === 'festival').map(toSnake),
-      notInterested: all.filter(d => d.callingMode === 'not_interested' || d.calling_mode === 'not_interested').map(toSnake),
-    };
+    try {
+      const all = await getCache();
+      return {
+        online:        all.filter(d => (d.callingMode || d.calling_mode) === 'online').map(toSnake),
+        festival:      all.filter(d => (d.callingMode || d.calling_mode) === 'festival').map(toSnake),
+        notInterested: all.filter(d => (d.callingMode || d.calling_mode) === 'not_interested').map(toSnake),
+      };
+    } catch (err) { console.error('getMgmtSeparateLists:', err); return { online: [], festival: [], notInterested: [] }; }
   },
 
   async getSeriousReport(sessionId, weekDate) {

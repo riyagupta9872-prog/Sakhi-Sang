@@ -7,6 +7,7 @@ import Header from './components/layout/Header';
 import TabNav, { BottomNav } from './components/layout/TabNav';
 import FilterRibbon from './components/layout/FilterRibbon';
 import Toast from './components/common/Toast';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 import HomePage from './pages/HomePage';
 import DevoteesPage from './pages/DevoteesPage';
@@ -19,10 +20,28 @@ import ActivityTabPage from './pages/ActivityTabPage';
 
 const ACTIVITY_CONFIGS = {
   books:        { key: 'books',        label: 'Books',        addFn: 'addBookDistribution', getFn: 'getBookDistributions', sumField: 'quantity', unit: 'books' },
-  service:      { key: 'service',      label: 'Service',      addFn: 'addService',           getFn: 'getServices',           sumField: null,       unit: 'entries' },
-  registration: { key: 'registration', label: 'Registration', addFn: 'addRegistration',      getFn: 'getRegistrations',      sumField: 'count',    unit: 'count' },
-  donation:     { key: 'donation',     label: 'Donation',     addFn: 'addDonation',          getFn: 'getDonations',          sumField: 'amount',   unit: '₹' },
+  service:      { key: 'service',      label: 'Service',      addFn: 'addService',          getFn: 'getServices',          sumField: null,       unit: 'entries' },
+  registration: { key: 'registration', label: 'Registration', addFn: 'addRegistration',     getFn: 'getRegistrations',     sumField: 'count',    unit: 'count' },
+  donation:     { key: 'donation',     label: 'Donation',     addFn: 'addDonation',         getFn: 'getDonations',         sumField: 'amount',   unit: '₹' },
 };
+
+function CurrentTab() {
+  const { activeTab } = useApp();
+  switch (activeTab) {
+    case 'dashboard':    return <HomePage />;
+    case 'devotees':     return <DevoteesPage />;
+    case 'calling':      return <CallingPage />;
+    case 'attendance':   return <AttendancePage />;
+    case 'books':        return <ActivityTabPage config={ACTIVITY_CONFIGS.books} />;
+    case 'service':      return <ActivityTabPage config={ACTIVITY_CONFIGS.service} />;
+    case 'registration': return <ActivityTabPage config={ACTIVITY_CONFIGS.registration} />;
+    case 'donation':     return <ActivityTabPage config={ACTIVITY_CONFIGS.donation} />;
+    case 'care':         return <CarePage />;
+    case 'events':       return <EventsPage />;
+    case 'calling-mgmt': return <CallingMgmtPage />;
+    default:             return <HomePage />;
+  }
+}
 
 function AppShell() {
   const { authState } = useAuth();
@@ -36,7 +55,6 @@ function AppShell() {
       </div>
     );
   }
-
   if (authState === 'auth' || authState === 'rejected') return <AuthScreen />;
   if (authState === 'pending') return <PendingApproval />;
 
@@ -46,17 +64,9 @@ function AppShell() {
       <TabNav />
       <FilterRibbon />
       <main className="main-content">
-        {activeTab === 'dashboard'    && <HomePage />}
-        {activeTab === 'devotees'     && <DevoteesPage />}
-        {activeTab === 'calling'      && <CallingPage />}
-        {activeTab === 'attendance'   && <AttendancePage />}
-        {activeTab === 'books'        && <ActivityTabPage config={ACTIVITY_CONFIGS.books} />}
-        {activeTab === 'service'      && <ActivityTabPage config={ACTIVITY_CONFIGS.service} />}
-        {activeTab === 'registration' && <ActivityTabPage config={ACTIVITY_CONFIGS.registration} />}
-        {activeTab === 'donation'     && <ActivityTabPage config={ACTIVITY_CONFIGS.donation} />}
-        {activeTab === 'care'         && <CarePage />}
-        {activeTab === 'events'       && <EventsPage />}
-        {activeTab === 'calling-mgmt' && <CallingMgmtPage />}
+        <ErrorBoundary key={activeTab}>
+          <CurrentTab />
+        </ErrorBoundary>
       </main>
       <BottomNav />
       <Toast />
