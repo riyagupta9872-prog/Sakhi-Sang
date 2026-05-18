@@ -89,6 +89,55 @@ export function TeamChangeHistoryModal({ open, devoteeId, devoteeName, currentTe
   );
 }
 
+// ── Calling Status Change History (field-level audit of calling edits) ────
+export function CallingStatusChangesModal({ open, devoteeId, devoteeName, onClose }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!open || !devoteeId) return;
+    setLoading(true);
+    DB.getCallingStatusChanges(devoteeId).then(h => { setList(h); setLoading(false); });
+  }, [open, devoteeId]);
+
+  const FIELD_LABELS = {
+    coming_status: 'Coming Status',
+    calling_reason: 'Reason',
+    calling_notes: 'Notes',
+    available_from: 'Available From',
+  };
+  const valueLabel = (field, v) => {
+    if (!v) return '—';
+    if (field === 'calling_reason') return CALLING_REASON_LABELS[v] || v;
+    if (field === 'available_from') return formatDate(v);
+    return v;
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={`📋 Calling Status Edits — ${devoteeName || ''}`} size="md">
+      {loading ? <div className="loading-spinner" /> :
+        list.length === 0 ? <div className="empty-state">No status edits recorded yet</div> :
+        <table className="simple-table">
+          <thead><tr><th>Field</th><th>From</th><th>To</th><th>By</th><th>Week</th><th>When</th></tr></thead>
+          <tbody>
+            {list.map((h, i) => (
+              <tr key={i}>
+                <td><strong>{FIELD_LABELS[h.field] || h.field}</strong></td>
+                <td className="text-muted">{valueLabel(h.field, h.oldValue)}</td>
+                <td>{valueLabel(h.field, h.newValue)}</td>
+                <td>{h.changedBy || '—'}</td>
+                <td>{h.weekDate ? formatDate(h.weekDate) : '—'}</td>
+                <td className="text-muted" style={{ fontSize: '.74rem' }}>
+                  {h.changedAtClient ? new Date(h.changedAtClient).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      }
+    </Modal>
+  );
+}
+
 // ── Calling history (4-week record per devotee) ────────────────────────────
 export function CallingHistoryModal({ open, devoteeId, devoteeName, onClose }) {
   const [list, setList] = useState([]);

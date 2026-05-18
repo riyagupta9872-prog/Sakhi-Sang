@@ -481,18 +481,58 @@ export const DB = {
     } catch (err) { console.error('getTeamCallingStatus:', err); return { devotees: [], submittedCallers: new Set() }; }
   },
 
-  async updateCallingStatus(devoteeId, weekDate, data) {
-    const existing = await getDocs(
-      query(collection(db, 'callingStatus'),
-        where('devotee_id', '==', devoteeId),
-        where('week_date', '==', weekDate))
-    );
-    const payload = { ...data, week_date: weekDate, devotee_id: devoteeId, updated_at: serverTimestamp(), updated_at_client: new Date().toISOString() };
-    if (existing.empty) {
-      await addDoc(collection(db, 'callingStatus'), payload);
-    } else {
-      await updateDoc(existing.docs[0].ref, payload);
-    }
+  async updateCallingStatus(devoteeId, weekDate, data, changedBy = '') {
+    try {
+      const existing = await getDocs(
+        query(collection(db, 'callingStatus'),
+          where('devotee_id', '==', devoteeId),
+          where('week_date', '==', weekDate))
+      );
+
+      // Diff to track field-level changes
+      const before = existing.empty ? {} : existing.docs[0].data();
+      const tracked = ['coming_status', 'calling_reason', 'calling_notes', 'available_from'];
+      const changes = [];
+      for (const f of tracked) {
+        const o = before[f] || '';
+        const n = data[f] || '';
+        if (String(o) !== String(n)) changes.push({ field: f, oldValue: String(o), newValue: String(n) });
+      }
+
+      const payload = { ...data, week_date: weekDate, devotee_id: devoteeId, updated_at: serverTimestamp(), updated_at_client: new Date().toISOString() };
+      if (existing.empty) await addDoc(collection(db, 'callingStatus'), payload);
+      else await updateDoc(existing.docs[0].ref, payload);
+
+      // Only log changes if there was an existing record (don't log first save) and after submission
+      if (!existing.empty && changes.length) {
+        const batch = writeBatch(db);
+        changes.forEach(c => {
+          batch.set(doc(collection(db, 'callingStatusChanges')), {
+            devoteeId, weekDate, ...c, changedBy,
+            changedAt: serverTimestamp(), changedAtClient: new Date().toISOString(),
+          });
+        });
+        await batch.commit();
+      }
+    } catch (err) { console.error('updateCallingStatus:', err); }
+  },
+
+  async getCallingStatusChanges(devoteeId) {
+    try {
+      const snap = await getDocs(query(collection(db, 'callingStatusChanges'), where('devoteeId', '==', devoteeId)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.changedAtClient || '').localeCompare(a.changedAtClient || ''));
+      return list.slice(0, 50);
+    } catch (err) { console.error('getCallingStatusChanges:', err); return []; }
+  },
+
+  async saveLateRemark(submissionId, remarks) {
+    try {
+      await updateDoc(doc(db, 'callingSubmissions', submissionId), {
+        remarks: remarks || '',
+        remarks_updated_at: serverTimestamp(),
+      });
+    } catch (err) { console.error('saveLateRemark:', err); }
   },
 
   async submitCallingWeek(weekDate, userId, userName, teamName) {
@@ -978,7 +1018,8 @@ export const DB = {
           if (!sub) return { week: w, submitted: false };
           const ts = sub.submitted_at_client || sub.last_submitted_at_client;
           const isLate = ts ? new Date(ts).getHours() >= 21 : false;
-          return { week: w, submitted: true, isLate, time: ts };
+          // submissions are keyed by docId = userId_weekDate (see submitCallingWeek)
+          return { week: w, submitted: true, isLate, time: ts, submissionId: `${u.id}_${w}`, remarks: sub.remarks || '' };
         });
         const lateCount = weekData.filter(w => w.submitted && w.isLate).length;
         return {

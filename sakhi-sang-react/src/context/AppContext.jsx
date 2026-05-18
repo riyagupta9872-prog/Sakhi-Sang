@@ -16,7 +16,7 @@ export const TAB_VIEWS = {
     { key: 'not-interested', label: 'Not Interested' },
   ],
   attendance: [
-    { key: 'live',       label: 'Live Attendance' },
+    { key: 'live',       label: 'Live Attendance', attSevaOnly: true },
     { divider: true,     label: 'REPORTS' },
     { key: 'sheet',      label: 'Attendance Sheet' },
     { key: 'late',       label: 'Late Comers' },

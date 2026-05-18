@@ -7,16 +7,17 @@ import { formatDate, toLocalDateStr, shiftDate, avatarInitials, isBirthdayThisWe
 import Modal from '../components/common/Modal';
 
 const CALLING_REASONS = [
-  { value: 'did_not_pick',      label: 'Did not pick',    needsDate: false },
-  { value: 'incoming_na',       label: 'Incoming N/A',    needsDate: false },
-  { value: 'wrong_number',      label: 'Wrong number',    needsDate: false },
-  { value: 'out_of_station',    label: 'Out of station',  needsDate: true  },
-  { value: 'exams',             label: 'Exams/Study',     needsDate: true  },
-  { value: 'online_class',      label: 'Online class',    needsDate: false },
-  { value: 'festival_calling',  label: 'Festival',        needsDate: false },
-  { value: 'not_interested_now',label: 'Not interested',  needsDate: false },
-  { value: 'other',             label: 'Other',           needsDate: false },
+  { value: 'did_not_pick',      label: 'Did not pick',    needsDate: false, template: 'Call not picked' },
+  { value: 'incoming_na',       label: 'Incoming N/A',    needsDate: false, template: 'Incoming not available / unreachable' },
+  { value: 'wrong_number',      label: 'Wrong number',    needsDate: false, template: 'Wrong number — needs update' },
+  { value: 'out_of_station',    label: 'Out of station',  needsDate: true,  template: 'Out of station, available from ' },
+  { value: 'exams',             label: 'Exams/Study',     needsDate: true,  template: 'Exams — available from ' },
+  { value: 'online_class',      label: 'Online class',    needsDate: false, template: 'Joining online' },
+  { value: 'festival_calling',  label: 'Festival',        needsDate: false, template: 'Festival calling' },
+  { value: 'not_interested_now',label: 'Not interested',  needsDate: false, template: 'Not interested now' },
+  { value: 'other',             label: 'Other',           needsDate: false, template: '' },
 ];
+const reasonTemplate = v => CALLING_REASONS.find(r => r.value === v)?.template || '';
 const reasonLabel  = v => CALLING_REASONS.find(r => r.value === v)?.label || v || '—';
 const reasonNeeds  = v => CALLING_REASONS.find(r => r.value === v)?.needsDate || false;
 
@@ -42,7 +43,14 @@ function CallingRow({ d, locked, onChange }) {
   function toggleComing() {
     onChange(id, { coming_status: isYes ? '' : 'Yes', calling_reason: isYes ? d.calling_reason : '', available_from: isYes ? d.available_from : '' });
   }
-  function onReason(e) { onChange(id, { calling_reason: e.target.value, coming_status: '', available_from: '' }); }
+  function onReason(e) {
+    const reason = e.target.value;
+    // Auto-fill notes template ONLY if notes is empty (don't overwrite user input)
+    const tmpl = reasonTemplate(reason);
+    const updates = { calling_reason: reason, coming_status: '', available_from: '' };
+    if (!d.calling_notes && tmpl) updates.calling_notes = tmpl;
+    onChange(id, updates);
+  }
   function onNotes(e) {
     clearTimeout(timer.current);
     const v = e.target.value;
@@ -90,6 +98,7 @@ function CallingRow({ d, locked, onChange }) {
               onChange={e => onChange(id, { available_from: e.target.value })} />
           )}
           <input className="form-input sm" type="text" placeholder="Notes…"
+            key={`notes-${id}-${d.calling_reason || ''}`}
             defaultValue={d.calling_notes || ''} onChange={onNotes} />
         </div>
       </td>
@@ -184,7 +193,7 @@ function CallsPanel({ weekDate, locked, cfg }) {
         calling_by: d.calling_by || d.callingBy || userName,
         team_name: d.team_name || d.teamName || userTeam,
         devotee_name: d.devotee_name || d.name || '',
-      });
+      }, userName);
     }, 600);
   }
 
@@ -457,18 +466,32 @@ function SubmissionReport() {
 function LateSubmissionReport() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const remarkTimers = useRef({});
   useEffect(() => {
     setLoading(true);
     DB.getLateSubmissionGrid(4).then(d => { setData(d); setLoading(false); });
   }, []);
 
+  function onRemarkChange(submissionId, value) {
+    if (remarkTimers.current[submissionId]) clearTimeout(remarkTimers.current[submissionId]);
+    remarkTimers.current[submissionId] = setTimeout(() => DB.saveLateRemark(submissionId, value), 800);
+  }
+
   if (loading) return <div className="loading-spinner" />;
   if (!data) return null;
+
+  // Find each row's most recent late week (for remarks input)
+  const rowsWithLate = data.rows.map(r => {
+    const lastLate = [...r.weeks].reverse().find(w => w.submitted && w.isLate);
+    return { ...r, lastLate };
+  });
 
   return (
     <div>
       <h4 className="section-title">Late Submission Tracking</h4>
-      <p className="text-muted mb-3" style={{fontSize:'.78rem'}}>✓ on-time (before 9 PM) · ⚠ late (after 9 PM) · — not submitted</p>
+      <p className="text-muted mb-3" style={{fontSize:'.78rem'}}>
+        ✓ on-time (before 9 PM) · ⚠ late (after 9 PM) · — not submitted · Remarks column saves automatically
+      </p>
       <div className="table-scroll">
         <table className="simple-table">
           <thead>
@@ -477,10 +500,11 @@ function LateSubmissionReport() {
               <th>Team</th>
               {data.weeks.map(w => <th key={w}>{w.slice(5)}</th>)}
               <th>Late</th>
+              <th style={{minWidth:160}}>Remarks (latest late)</th>
             </tr>
           </thead>
           <tbody>
-            {data.rows.map(r => (
+            {rowsWithLate.map(r => (
               <tr key={r.userId} className={r.weeks[r.weeks.length-1]?.isLate ? 'row-recent-late' : ''}>
                 <td>
                   {r.role === 'teamAdmin' && <span title="Coordinator">👑 </span>}
@@ -497,6 +521,13 @@ function LateSubmissionReport() {
                   </td>
                 ))}
                 <td><strong style={{color: r.lateCount > 0 ? 'var(--color-danger)' : 'var(--text-muted)'}}>{r.lateCount}</strong></td>
+                <td>
+                  {r.lastLate
+                    ? <input className="form-input sm" placeholder="Add note…"
+                        defaultValue={r.lastLate.remarks || ''}
+                        onChange={e => onRemarkChange(r.lastLate.submissionId, e.target.value)} />
+                    : <span className="text-muted">—</span>}
+                </td>
               </tr>
             ))}
           </tbody>

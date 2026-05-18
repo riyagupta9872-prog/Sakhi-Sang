@@ -585,6 +585,21 @@ input, select, textarea { font-family: inherit; }
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 14px; }
 .header-user-display { display: flex; align-items: center; gap: 10px; padding-right: 6px; }
 
+/* ── User mgmt Att Seva toggle ───────────────────────────────────────────── */
+.user-att-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: .76rem; color: var(--text); cursor: pointer; white-space: nowrap; }
+.user-att-toggle input { cursor: pointer; }
+
+/* ── Excel import result ─────────────────────────────────────────────────── */
+.import-result { text-align: center; padding: 16px 8px; }
+.import-result-icon { font-size: 3rem; }
+.import-result h3 { font-size: 1.1rem; margin: 8px 0 12px; font-weight: 700; }
+.import-result-stats { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; font-size: .9rem; }
+.import-result-stats > div { padding: 8px 14px; background: #fffde7; border: 1px solid #f5c518; border-radius: var(--radius-md); }
+.import-result-stats .text-danger { background: rgba(220,38,38,.08); border-color: var(--color-danger); color: var(--color-danger); }
+
+/* ── KPI grid (for reports) ──────────────────────────────────────────────── */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
+
 /* ── Stat pill drilldown ─────────────────────────────────────────────────── */
 .stat-pill-wrap { display: inline-flex; align-items: stretch; border-radius: var(--radius-full); overflow: hidden; }
 .stat-pill-drill { padding: 5px 10px; background: white; border: 1.5px solid var(--border); border-left: none; color: var(--text-muted); font-size: .9rem; cursor: pointer; transition: all .12s; border-radius: 0 var(--radius-full) var(--radius-full) 0; margin-left: -1px; }

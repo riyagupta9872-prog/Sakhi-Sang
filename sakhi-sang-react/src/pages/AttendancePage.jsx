@@ -384,6 +384,7 @@ function AccuracyPanel({ sessionId, sessionDate }) {
 // ── Main AttendancePage — driven by activeView from context ──────────────────
 export default function AttendancePage() {
   const { filters, activeView } = useApp();
+  const { isAttSevaDev } = useAuth();
   const [sessionId, setSessionId] = useState('');
   const [sessionDate, setSessionDate] = useState('');
   const [loading, setLoading] = useState(true);
@@ -396,7 +397,7 @@ export default function AttendancePage() {
     if (filters.sessionDate) setSessionDate(filters.sessionDate);
   }, [filters.sessionId, filters.sessionDate]);
 
-  const view = activeView || 'live';
+  const view = activeView || (isAttSevaDev ? 'live' : 'sheet');
 
   return (
     <div className="tab-page">

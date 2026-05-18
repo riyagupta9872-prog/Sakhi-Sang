@@ -9,6 +9,7 @@ import SignupRequests from '../admin/SignupRequests';
 import ClearDataModal from '../admin/ClearDataModal';
 import SessionManagement from '../admin/SessionManagement';
 import PersonalMeetings from '../admin/PersonalMeetings';
+import { MonthlyReports, FYReports, IndividualReports } from '../admin/AggregateReports';
 import { TEAMS } from '../../firebase/config';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/config';
@@ -18,6 +19,9 @@ export default function Sidebar({ open, onClose }) {
   const { showToast } = useApp();
 
   const [groups, setGroups] = useState({ management: true, reports: false });
+  const [showMonthly, setShowMonthly] = useState(false);
+  const [showFY, setShowFY] = useState(false);
+  const [showIndividual, setShowIndividual] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [showProfile, setShowProfile] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
@@ -92,6 +96,27 @@ export default function Sidebar({ open, onClose }) {
                 )}
               </div>
 
+              <div className="sidebar-group">
+                <button className="sidebar-group-header" onClick={() => tg('reports')}>
+                  <span className="sg-icon">📊</span>
+                  <span>Reports</span>
+                  <span className={`sg-chevron${groups.reports ? ' open' : ''}`}>▾</span>
+                </button>
+                {groups.reports && (
+                  <div className="sidebar-group-body">
+                    <button className="sidebar-item sub" onClick={() => { setShowMonthly(true); close(); }}>
+                      <span>📅</span><span>Monthly Reports</span>
+                    </button>
+                    <button className="sidebar-item sub" onClick={() => { setShowFY(true); close(); }}>
+                      <span>📈</span><span>FY Reports</span>
+                    </button>
+                    <button className="sidebar-item sub" onClick={() => { setShowIndividual(true); close(); }}>
+                      <span>👤</span><span>Individual Reports</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button className="sidebar-item" onClick={() => { setShowPersonalMeetings(true); close(); }}>
                 <span>🤝</span><span>Personal Meetings</span>
               </button>
@@ -139,6 +164,9 @@ export default function Sidebar({ open, onClose }) {
       {isSuper && <TargetMgmtModal open={showTargets} onClose={() => setShowTargets(false)} />}
       {isSuper && <TeamRenameModal open={showTeamRename} onClose={() => setShowTeamRename(false)} />}
       {isSuper && <PersonalMeetings open={showPersonalMeetings} onClose={() => setShowPersonalMeetings(false)} />}
+      {isSuper && <MonthlyReports    open={showMonthly}   onClose={() => setShowMonthly(false)} />}
+      {isSuper && <FYReports         open={showFY}        onClose={() => setShowFY(false)} />}
+      {isSuper && <IndividualReports open={showIndividual} onClose={() => setShowIndividual(false)} />}
     </>
   );
 }

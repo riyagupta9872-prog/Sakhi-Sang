@@ -62,6 +62,10 @@ export default function UserManagement({ open, onClose }) {
                 <option value="">No team</option>
                 {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
+              <label className="user-att-toggle" title="Allow marking live attendance">
+                <input type="checkbox" checked={!!u.isAttSevaDev} onChange={e => saveUser(u.id, { isAttSevaDev: e.target.checked })} />
+                <span>Att. Seva</span>
+              </label>
               <button className="btn-icon danger" onClick={() => removeUser(u.id)} title="Remove user">✕</button>
             </div>
           ))}

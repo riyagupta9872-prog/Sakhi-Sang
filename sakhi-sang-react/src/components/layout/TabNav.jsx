@@ -18,7 +18,7 @@ export const TABS = [
 ];
 
 // Dropdown rendered via portal so overflow:hidden on tab-nav doesn't clip it
-function TabDropdown({ tabId, views, userRole, anchorRect, onSelect, onClose }) {
+function TabDropdown({ tabId, views, userRole, isAttSevaDev, anchorRect, onSelect, onClose }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -42,6 +42,7 @@ function TabDropdown({ tabId, views, userRole, anchorRect, onSelect, onClose }) 
       {views.map((v, i) => {
         if (v.divider) return <div key={i} className="tab-menu-divider">{v.label}</div>;
         if (v.roles && !v.roles.includes(userRole)) return null;
+        if (v.attSevaOnly && !isAttSevaDev) return null;
         return (
           <button key={v.key} className="tab-menu-item" onMouseDown={() => onSelect(tabId, v.key)}>
             {v.label}
@@ -55,7 +56,7 @@ function TabDropdown({ tabId, views, userRole, anchorRect, onSelect, onClose }) 
 
 export default function TabNav() {
   const { activeTab, activeView, navTo, setActiveTab } = useApp();
-  const { userRole } = useAuth();
+  const { userRole, isAttSevaDev } = useAuth();
   const [openMenu, setOpenMenu] = useState(null);   // tabId
   const [anchorRect, setAnchorRect] = useState(null);
 
@@ -104,6 +105,7 @@ export default function TabNav() {
           tabId={openMenu}
           views={views}
           userRole={userRole}
+          isAttSevaDev={isAttSevaDev}
           anchorRect={anchorRect}
           onSelect={handleViewSelect}
           onClose={() => setOpenMenu(null)}

@@ -168,6 +168,8 @@ export function AuthProvider({ children }) {
     userPosition: userDoc?.position || '',
     isSuper: effectiveRole === 'superAdmin',
     isTeamAdmin: effectiveRole === 'teamAdmin' || effectiveRole === 'superAdmin',
+    // SuperAdmin always has live access; others need explicit isAttSevaDev flag
+    isAttSevaDev: effectiveRole === 'superAdmin' || !!userDoc?.isAttSevaDev,
     signup,
     login,
     logout,

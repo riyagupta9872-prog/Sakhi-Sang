@@ -4,8 +4,9 @@ import { DB } from '../firebase/db';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { avatarInitials } from '../utils/helpers';
+import useLongPress from '../utils/useLongPress';
 
-// Bulk action toolbar
+// Bulk action bar
 function BulkBar({ selected, onClear, onAction }) {
   if (selected.size === 0) return null;
   return (
@@ -20,12 +21,33 @@ function BulkBar({ selected, onClear, onAction }) {
   );
 }
 
-// ── Calling List with 4-week grid ──────────────────────────────────────────
+// Long-press-aware row
+function MgmtRow({ d, selectMode, selected, onLongPress, onToggle, weeks, submMap }) {
+  const lp = useLongPress(() => onLongPress(d.id), 600);
+  const onClick = () => { if (selectMode) onToggle(d.id); };
+  return (
+    <tr {...lp} onClick={onClick} className={selected ? 'row-selected' : ''} style={selectMode ? { cursor: 'pointer' } : {}}>
+      {selectMode && (
+        <td style={{width:34}}>
+          <input type="checkbox" checked={selected} readOnly />
+        </td>
+      )}
+      <td className="frozen name-col"><strong>{d.name}</strong></td>
+      <td>{d.team_name}</td>
+      <td>{d.calling_by || '—'}</td>
+      {weeks.map(w => <td key={w} className="cs-cell">{Object.keys(submMap[w]||{}).length ? '●' : '○'}</td>)}
+      <td><strong>{d.lifetime_attendance || 0}</strong></td>
+    </tr>
+  );
+}
+
+// ── Calling List with 4-week grid + long-press select ──────────────────────
 function CallingListPanel() {
   const { filters, showToast } = useApp();
   const { isSuper } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
 
   async function load() {
@@ -35,19 +57,32 @@ function CallingListPanel() {
   }
   useEffect(() => { load(); }, [filters.team, filters.callingBy]);
 
-  function toggleSelect(id) {
+  function enterSelect(id) {
+    if (!isSuper) return;
+    setSelectMode(true);
+    setSelected(new Set([id]));
+  }
+
+  function toggle(id) {
     setSelected(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
+      // If user un-selects everything, leave select mode
+      if (next.size === 0) setSelectMode(false);
       return next;
     });
+  }
+
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected(new Set());
   }
 
   async function bulkAction(mode) {
     if (!confirm(`Move ${selected.size} devotees to "${mode}" mode?`)) return;
     for (const id of selected) await DB.setDevoteeCallingMode(id, mode);
     showToast(`${selected.size} devotees updated`, 'success');
-    setSelected(new Set());
+    exitSelect();
     load();
   }
 
@@ -73,10 +108,15 @@ function CallingListPanel() {
   return (
     <div>
       <div className="section-header">
-        <span className="text-muted">{devotees.length} devotees</span>
+        <span className="text-muted">
+          {devotees.length} devotees {isSuper && <span style={{fontSize:'.74rem', marginLeft: 8}}>· hold a row to multi-select</span>}
+        </span>
         <div style={{display:'flex',gap:6}}>
-          {isSuper && selected.size > 0 && (
-            <button className="btn-outline sm" onClick={() => setSelected(new Set(devotees.map(d => d.id)))}>Select All</button>
+          {selectMode && (
+            <button className="btn-outline sm" onClick={() => setSelected(new Set(devotees.map(d => d.id)))}>Select All ({devotees.length})</button>
+          )}
+          {selectMode && (
+            <button className="btn-outline sm" onClick={exitSelect}>Cancel</button>
           )}
           <button className="btn-outline sm" onClick={exportExcel}>⬇ Excel</button>
         </div>
@@ -86,7 +126,7 @@ function CallingListPanel() {
         <table className="calling-table">
           <thead>
             <tr>
-              {isSuper && <th style={{width:34}}></th>}
+              {selectMode && <th style={{width:34}}></th>}
               <th className="frozen name-col">Name</th>
               <th>Team</th>
               <th>Calling By</th>
@@ -95,24 +135,17 @@ function CallingListPanel() {
             </tr>
           </thead>
           <tbody>
-            {devotees.length === 0 && <tr><td colSpan={weeks.length + 5} className="empty-state">No data</td></tr>}
+            {devotees.length === 0 && <tr><td colSpan={weeks.length + (selectMode ? 5 : 4)} className="empty-state">No data</td></tr>}
             {devotees.map(d => (
-              <tr key={d.id} className={selected.has(d.id) ? 'row-selected' : ''}>
-                {isSuper && (
-                  <td><input type="checkbox" checked={selected.has(d.id)} onChange={() => toggleSelect(d.id)} /></td>
-                )}
-                <td className="frozen name-col"><strong>{d.name}</strong></td>
-                <td>{d.team_name}</td>
-                <td>{d.calling_by || '—'}</td>
-                {weeks.map(w => <td key={w} className="cs-cell">{Object.keys(submMap[w]||{}).length ? '●' : '○'}</td>)}
-                <td><strong>{d.lifetime_attendance || 0}</strong></td>
-              </tr>
+              <MgmtRow key={d.id} d={d} weeks={weeks} submMap={submMap}
+                selectMode={selectMode} selected={selected.has(d.id)}
+                onLongPress={enterSelect} onToggle={toggle} />
             ))}
           </tbody>
         </table>
       </div>
 
-      <BulkBar selected={selected} onClear={() => setSelected(new Set())} onAction={bulkAction} />
+      <BulkBar selected={selected} onClear={exitSelect} onAction={bulkAction} />
     </div>
   );
 }

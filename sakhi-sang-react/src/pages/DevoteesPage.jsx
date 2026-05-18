@@ -8,7 +8,8 @@ import Modal from '../components/common/Modal';
 import DevoteePicker from '../components/common/DevoteePicker';
 import FAB from '../components/common/FAB';
 import ProfileGauge, { calcProfileCompletion } from '../components/common/ProfileGauge';
-import { ProfileHistoryModal, CallingHistoryModal, TeamChangeHistoryModal } from '../components/common/DevoteeHistoryModals';
+import { ProfileHistoryModal, CallingHistoryModal, TeamChangeHistoryModal, CallingStatusChangesModal } from '../components/common/DevoteeHistoryModals';
+import ExcelImport from '../components/common/ExcelImport';
 
 // ── DevoteeItem card ───────────────────────────────────────────────────────────
 function DevoteeItem({ d, onOpen }) {
@@ -36,12 +37,13 @@ function DevoteeItem({ d, onOpen }) {
 }
 
 // ── Profile Modal ──────────────────────────────────────────────────────────────
-function ProfileModal({ devoteeId, onClose, onEdit }) {
+function ProfileModal({ devoteeId, onClose, onEdit, onNavigate }) {
   const [d, setD] = useState(null);
   const [activeTab, setActiveTab] = useState('identity');
   const [showProfileHistory, setShowProfileHistory] = useState(false);
   const [showCallingHistory, setShowCallingHistory] = useState(false);
   const [showTeamHistory, setShowTeamHistory] = useState(false);
+  const [showStatusEdits, setShowStatusEdits] = useState(false);
   const [referredList, setReferredList] = useState([]);
   const { isSuper, isTeamAdmin } = useAuth();
 
@@ -122,7 +124,11 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
           <dl className="detail-list">
             <dt>Team</dt><dd>{d.team_name || '—'}</dd>
             <dt>Status</dt><dd>{d.devotee_status || '—'}</dd>
-            <dt>Referred By</dt><dd>{d.reference_by || '—'}</dd>
+            <dt>Referred By</dt><dd>{d.reference_by
+              ? (d.reference_id
+                  ? <button className="link-btn" onClick={() => onNavigate?.(d.reference_id)}>{d.reference_by} →</button>
+                  : d.reference_by)
+              : '—'}</dd>
             <dt>Facilitator</dt><dd>{d.facilitator || '—'}</dd>
             <dt>Calling By</dt><dd>{d.calling_by || '—'}</dd>
             <dt>Remarks</dt><dd className="remarks-text">{d.remarks || '—'}</dd>
@@ -160,10 +166,11 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
             {referredList.length === 0
               ? <div className="empty-state">No referred devotees</div>
               : referredList.map(r => (
-                  <div key={r.id} className="referred-item">
+                  <div key={r.id} className="referred-item" onClick={() => onNavigate?.(r.id)} style={{cursor:'pointer'}}>
                     <span className="devotee-avatar sm">{avatarInitials(r.name)}</span>
-                    <span>{r.name}</span>
+                    <span><strong>{r.name}</strong></span>
                     <span className="badge badge-team">{r.team_name}</span>
+                    <span className="text-muted ml-auto">→</span>
                   </div>
                 ))
             }
@@ -177,6 +184,7 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
         <button className="btn-outline" onClick={() => setShowCallingHistory(true)}>📞 Calling History</button>
         <button className="btn-outline" onClick={() => setShowProfileHistory(true)}>🕑 Profile Changes</button>
         <button className="btn-outline" onClick={() => setShowTeamHistory(true)}>🔄 Team History</button>
+        <button className="btn-outline" onClick={() => setShowStatusEdits(true)}>📋 Calling Edits</button>
         {d.mobile && <a href={`tel:${d.mobile}`} className="btn-outline">📞 Call</a>}
         {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-outline" target="_blank" rel="noreferrer">💬 WhatsApp</a>}
         {isSuper && <button className="btn-outline" onClick={handleNotInterested}>✕ Not Interested</button>}
@@ -186,6 +194,7 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
       <ProfileHistoryModal open={showProfileHistory} devoteeId={devoteeId} onClose={() => setShowProfileHistory(false)} />
       <CallingHistoryModal open={showCallingHistory} devoteeId={devoteeId} devoteeName={d.name} onClose={() => setShowCallingHistory(false)} />
       <TeamChangeHistoryModal open={showTeamHistory} devoteeId={devoteeId} devoteeName={d.name} currentTeam={d.team_name} onClose={() => setShowTeamHistory(false)} />
+      <CallingStatusChangesModal open={showStatusEdits} devoteeId={devoteeId} devoteeName={d.name} onClose={() => setShowStatusEdits(false)} />
     </div>
   );
 }
@@ -417,6 +426,7 @@ export default function DevoteesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [showImport, setShowImport] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
@@ -445,6 +455,9 @@ export default function DevoteesPage() {
         {isTeamAdmin && (
           <button className="btn-primary" onClick={openNew}>+ New Devotee</button>
         )}
+        {isSuper && (
+          <button className="btn-outline" onClick={() => setShowImport(true)}>📤 Import Excel</button>
+        )}
       </div>
 
       <div className="list-count">{loading ? 'Loading…' : `${devotees.length} devotee${devotees.length !== 1 ? 's' : ''}`}</div>
@@ -461,7 +474,7 @@ export default function DevoteesPage() {
 
       {/* Profile modal */}
       <Modal open={!!selectedId} onClose={() => setSelectedId(null)} title="Devotee Profile" size="lg" noPad>
-        {selectedId && <ProfileModal devoteeId={selectedId} onClose={() => setSelectedId(null)} onEdit={id => { setSelectedId(null); openEdit(id); }} />}
+        {selectedId && <ProfileModal devoteeId={selectedId} onClose={() => setSelectedId(null)} onEdit={id => { setSelectedId(null); openEdit(id); }} onNavigate={(id) => setSelectedId(id)} />}
       </Modal>
 
       {/* Form modal */}
@@ -471,6 +484,9 @@ export default function DevoteesPage() {
 
       {/* FAB for adding a new devotee — visible to coordinators+ */}
       {isTeamAdmin && <FAB icon="+" label="New Devotee" onClick={openNew} />}
+
+      {/* Excel Import modal */}
+      <ExcelImport open={showImport} onClose={() => setShowImport(false)} onImported={load} />
     </div>
   );
 }
