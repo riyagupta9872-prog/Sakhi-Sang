@@ -97,6 +97,42 @@ function CallingRow({ d, locked, onChange }) {
   );
 }
 
+// ── Stat drilldown modal ────────────────────────────────────────────────────
+function StatDrilldownModal({ open, title, list, onClose }) {
+  const [search, setSearch] = useState('');
+  if (!open) return null;
+  const filtered = search
+    ? list.filter(d => {
+        const n = (d.devotee_name || d.name || '').toLowerCase();
+        const m = (d.mobile || '');
+        return n.includes(search.toLowerCase()) || m.includes(search);
+      })
+    : list;
+  return (
+    <Modal open={open} onClose={onClose} title={title} size="lg">
+      <div className="search-box mb-3">
+        <input className="form-input" placeholder="Search name or mobile…" value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+      <div className="text-muted mb-3" style={{fontSize:'.8rem'}}>{filtered.length} devotee{filtered.length !== 1 ? 's' : ''}</div>
+      <table className="simple-table">
+        <thead><tr><th>#</th><th>Name</th><th>Mobile</th><th>Team</th><th>Calling By</th></tr></thead>
+        <tbody>
+          {filtered.length === 0 && <tr><td colSpan={5} className="empty-state">No devotees</td></tr>}
+          {filtered.map((d, i) => (
+            <tr key={d.id || d.devotee_id || i}>
+              <td>{i+1}</td>
+              <td><strong>{d.devotee_name || d.name}</strong></td>
+              <td>{d.mobile ? <a href={`tel:${d.mobile}`}>{d.mobile}</a> : '—'}</td>
+              <td>{d.team_name || d.teamName || '—'}</td>
+              <td>{d.calling_by || d.callingBy || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Modal>
+  );
+}
+
 // ── Calls panel ─────────────────────────────────────────────────────────────
 function CallsPanel({ weekDate, locked, cfg }) {
   const { showToast, filters } = useApp();
@@ -107,6 +143,7 @@ function CallsPanel({ weekDate, locked, cfg }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(false);
+  const [drilldown, setDrilldown] = useState(null);
   const timers = useRef({});
 
   useEffect(() => { if (weekDate) load(); }, [weekDate]);
@@ -180,13 +217,31 @@ function CallsPanel({ weekDate, locked, cfg }) {
       <SessionChip cfg={cfg} />
       {!weekDate && <div className="locked-banner gray">⚙ No session configured. Configure from Dashboard → ⚙ Configure Session.</div>}
       <div className="calling-stats">
-        {PILLS.map(p => (
-          <button key={p.key} className={`stat-pill ${p.cls}${statusFilter === p.key ? ' active' : ''}`}
-            onClick={() => setStatusFilter(f => f === p.key ? '' : p.key)}>
-            {p.label}: <strong>{p.val}</strong>
-          </button>
-        ))}
+        {PILLS.map(p => {
+          // Compute the list for this stat for drilldown
+          const matchesPill = (d) => {
+            if (p.key === 'confirmed')   return d.coming_status === 'Yes';
+            if (p.key === 'not_reached') return ['did_not_pick','incoming_na','wrong_number'].includes(d.calling_reason);
+            if (p.key === 'unavailable') return ['out_of_station','exams'].includes(d.calling_reason);
+            if (p.key === 'online')      return d.calling_reason === 'online_class';
+            if (p.key === 'festival')    return d.calling_reason === 'festival_calling';
+            if (p.key === 'not_called')  return !d.coming_status && !d.calling_reason;
+            return false;
+          };
+          return (
+            <div key={p.key} className="stat-pill-wrap">
+              <button className={`stat-pill ${p.cls}${statusFilter === p.key ? ' active' : ''}`}
+                onClick={() => setStatusFilter(f => f === p.key ? '' : p.key)}>
+                {p.label}: <strong>{p.val}</strong>
+              </button>
+              <button className="stat-pill-drill" title="View list" onClick={() => setDrilldown({ title: p.label, list: devotees.filter(matchesPill) })}>
+                ⊕
+              </button>
+            </div>
+          );
+        })}
       </div>
+      <StatDrilldownModal open={!!drilldown} title={drilldown?.title} list={drilldown?.list || []} onClose={() => setDrilldown(null)} />
       <div className="calling-toolbar">
         <input className="form-input" placeholder="Search name or mobile…" value={search} onChange={e => setSearch(e.target.value)} />
         <button className="btn-outline sm" onClick={() => { setSearch(''); setStatusFilter(''); }}>Clear</button>
@@ -348,12 +403,30 @@ function SubmissionReport() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => { setLoading(true); DB.getSubmissionReport().then(d => { setData(d); setLoading(false); }); }, []);
+
   if (loading) return <div className="loading-spinner" />;
   if (!data) return null;
   const { fourWeeks, submMap, teamRows } = data;
+
+  function exportExcel() {
+    const rows = [['Team', 'Coordinator', ...fourWeeks.map(w => w)]];
+    Object.entries(teamRows).forEach(([team, members]) => {
+      members.forEach(m => {
+        rows.push([team, m.userName, ...fourWeeks.map(w => submMap[w]?.[m.userName] ? '✓' : '')]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Submissions');
+    XLSX.writeFile(wb, `Submission_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
   return (
     <div>
-      <h4 className="section-title">Submission Report — Last 4 Weeks</h4>
+      <div className="section-header">
+        <h4 className="section-title">Submission Report — Last 4 Weeks</h4>
+        <button className="btn-outline sm" onClick={exportExcel}>⬇ Excel</button>
+      </div>
       <div className="table-scroll">
         <table className="simple-table">
           <thead><tr><th>Team / Coordinator</th>{fourWeeks.map(w => <th key={w}>{w.slice(5)}</th>)}</tr></thead>
@@ -372,6 +445,59 @@ function SubmissionReport() {
                   </tr>
                 ))}
               </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Late Submission Report ──────────────────────────────────────────────────
+function LateSubmissionReport() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    setLoading(true);
+    DB.getLateSubmissionGrid(4).then(d => { setData(d); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="loading-spinner" />;
+  if (!data) return null;
+
+  return (
+    <div>
+      <h4 className="section-title">Late Submission Tracking</h4>
+      <p className="text-muted mb-3" style={{fontSize:'.78rem'}}>✓ on-time (before 9 PM) · ⚠ late (after 9 PM) · — not submitted</p>
+      <div className="table-scroll">
+        <table className="simple-table">
+          <thead>
+            <tr>
+              <th>Coordinator</th>
+              <th>Team</th>
+              {data.weeks.map(w => <th key={w}>{w.slice(5)}</th>)}
+              <th>Late</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map(r => (
+              <tr key={r.userId} className={r.weeks[r.weeks.length-1]?.isLate ? 'row-recent-late' : ''}>
+                <td>
+                  {r.role === 'teamAdmin' && <span title="Coordinator">👑 </span>}
+                  <strong>{r.name}</strong>
+                </td>
+                <td>{r.team || '—'}</td>
+                {r.weeks.map((w, i) => (
+                  <td key={i} style={{textAlign:'center'}}>
+                    {!w.submitted && <span className="text-muted">—</span>}
+                    {w.submitted && !w.isLate && <span className="badge-submitted" title="On time">✓</span>}
+                    {w.submitted && w.isLate && (
+                      <span className="badge-late" title={`Late at ${new Date(w.time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`}>⚠</span>
+                    )}
+                  </td>
+                ))}
+                <td><strong style={{color: r.lateCount > 0 ? 'var(--color-danger)' : 'var(--text-muted)'}}>{r.lateCount}</strong></td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -483,12 +609,13 @@ export default function CallingPage() {
           </span>
         </div>
       )}
-      {view === 'calls'      && <CallsPanel weekDate={weekDate} locked={locked} cfg={cfg} />}
-      {view === 'team-calling'&& <TeamCallingPanel weekDate={weekDate} />}
-      {view === 'weekly'     && <WeeklyReport weekDate={weekDate} />}
-      {view === 'submission' && <SubmissionReport />}
-      {view === 'history'    && <HistoryPanel />}
-      {view === 'not-interested' && <NotInterestedPanel />}
+      {view === 'calls'         && <CallsPanel weekDate={weekDate} locked={locked} cfg={cfg} />}
+      {view === 'team-calling'  && <TeamCallingPanel weekDate={weekDate} />}
+      {view === 'weekly'        && <WeeklyReport weekDate={weekDate} />}
+      {view === 'submission'    && <SubmissionReport />}
+      {view === 'late'          && <LateSubmissionReport />}
+      {view === 'history'       && <HistoryPanel />}
+      {view === 'not-interested'&& <NotInterestedPanel />}
     </div>
   );
 }

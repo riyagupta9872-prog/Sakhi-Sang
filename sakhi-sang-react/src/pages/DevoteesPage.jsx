@@ -8,7 +8,7 @@ import Modal from '../components/common/Modal';
 import DevoteePicker from '../components/common/DevoteePicker';
 import FAB from '../components/common/FAB';
 import ProfileGauge, { calcProfileCompletion } from '../components/common/ProfileGauge';
-import { ProfileHistoryModal, CallingHistoryModal } from '../components/common/DevoteeHistoryModals';
+import { ProfileHistoryModal, CallingHistoryModal, TeamChangeHistoryModal } from '../components/common/DevoteeHistoryModals';
 
 // ── DevoteeItem card ───────────────────────────────────────────────────────────
 function DevoteeItem({ d, onOpen }) {
@@ -41,6 +41,7 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
   const [activeTab, setActiveTab] = useState('identity');
   const [showProfileHistory, setShowProfileHistory] = useState(false);
   const [showCallingHistory, setShowCallingHistory] = useState(false);
+  const [showTeamHistory, setShowTeamHistory] = useState(false);
   const [referredList, setReferredList] = useState([]);
   const { isSuper, isTeamAdmin } = useAuth();
 
@@ -175,6 +176,7 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
         {isTeamAdmin && <button className="btn-primary" onClick={() => onEdit(d.id)}>✏ Edit</button>}
         <button className="btn-outline" onClick={() => setShowCallingHistory(true)}>📞 Calling History</button>
         <button className="btn-outline" onClick={() => setShowProfileHistory(true)}>🕑 Profile Changes</button>
+        <button className="btn-outline" onClick={() => setShowTeamHistory(true)}>🔄 Team History</button>
         {d.mobile && <a href={`tel:${d.mobile}`} className="btn-outline">📞 Call</a>}
         {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-outline" target="_blank" rel="noreferrer">💬 WhatsApp</a>}
         {isSuper && <button className="btn-outline" onClick={handleNotInterested}>✕ Not Interested</button>}
@@ -183,6 +185,7 @@ function ProfileModal({ devoteeId, onClose, onEdit }) {
 
       <ProfileHistoryModal open={showProfileHistory} devoteeId={devoteeId} onClose={() => setShowProfileHistory(false)} />
       <CallingHistoryModal open={showCallingHistory} devoteeId={devoteeId} devoteeName={d.name} onClose={() => setShowCallingHistory(false)} />
+      <TeamChangeHistoryModal open={showTeamHistory} devoteeId={devoteeId} devoteeName={d.name} currentTeam={d.team_name} onClose={() => setShowTeamHistory(false)} />
     </div>
   );
 }

@@ -14,7 +14,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 export default function Sidebar({ open, onClose }) {
-  const { userName, userRole, userTeam, userPosition, userDoc, userId, logout, changePassword, isSuper, refreshUserDoc } = useAuth();
+  const { userName, userRole, userTeam, userPosition, userDoc, userId, logout, changePassword, isSuper, refreshUserDoc, trueRole, overrideRole, setOverrideRole } = useAuth();
   const { showToast } = useApp();
 
   const [groups, setGroups] = useState({ management: true, reports: false });
@@ -101,6 +101,17 @@ export default function Sidebar({ open, onClose }) {
 
               <div className="sidebar-divider" />
             </>
+          )}
+
+          {trueRole === 'superAdmin' && (
+            <button className="sidebar-item" onClick={() => {
+              if (overrideRole) { setOverrideRole(''); showToast('Returned to Super Admin view', 'info'); }
+              else { setOverrideRole('serviceDevotee'); showToast('Now viewing as Service Devotee', 'info'); }
+              close();
+            }}>
+              <span>{overrideRole ? '↩' : '👁'}</span>
+              <span>{overrideRole ? 'Return to Super Admin' : 'View as Service Devotee'}</span>
+            </button>
           )}
 
           <button className="sidebar-item" onClick={() => { setShowProfile(true); close(); }}>

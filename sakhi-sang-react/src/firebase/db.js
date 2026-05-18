@@ -947,6 +947,63 @@ export const DB = {
     return STATUSES.map(s => ({ status: s, ...result[s] }));
   },
 
+  async getLateSubmissions(weekDate, afterHour = 21) {
+    try {
+      const snap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate)));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => {
+        const ts = s.submitted_at_client || s.last_submitted_at_client;
+        if (!ts) return false;
+        return new Date(ts).getHours() >= afterHour;
+      });
+    } catch (err) { console.error('getLateSubmissions:', err); return []; }
+  },
+
+  async getLateSubmissionGrid(weeksBefore = 4) {
+    try {
+      const today = toLocalDateStr();
+      const weeks = [];
+      let cur = snapToSunday(today);
+      for (let i = 0; i < weeksBefore; i++) {
+        weeks.unshift(shiftDate(cur, -1));
+        cur = shiftDate(cur, -7);
+      }
+      const submMap = await this.getCallingSubmissions(weeks);
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(u => u.role === 'teamAdmin' || u.role === 'serviceDevotee');
+      // For each user, find their submission per week
+      const rows = users.map(u => {
+        const weekData = weeks.map(w => {
+          const sub = submMap[w]?.[u.displayName || u.name || ''];
+          if (!sub) return { week: w, submitted: false };
+          const ts = sub.submitted_at_client || sub.last_submitted_at_client;
+          const isLate = ts ? new Date(ts).getHours() >= 21 : false;
+          return { week: w, submitted: true, isLate, time: ts };
+        });
+        const lateCount = weekData.filter(w => w.submitted && w.isLate).length;
+        return {
+          userId: u.id,
+          name: u.displayName || u.name || '—',
+          team: u.teamName || u.team_name || '',
+          role: u.role,
+          weeks: weekData,
+          lateCount,
+        };
+      });
+      rows.sort((a, b) => b.lateCount - a.lateCount || (a.name || '').localeCompare(b.name || ''));
+      return { weeks, rows };
+    } catch (err) { console.error('getLateSubmissionGrid:', err); return { weeks: [], rows: [] }; }
+  },
+
+  async getTeamChangeHistory(devoteeId) {
+    try {
+      const snap = await getDocs(query(collection(db, 'profileChanges'), where('devoteeId', '==', devoteeId)));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.field === 'team_name');
+      list.sort((a, b) => (b.changedAtClient || '').localeCompare(a.changedAtClient || ''));
+      return list.slice(0, 30);
+    } catch (err) { console.error('getTeamChangeHistory:', err); return []; }
+  },
+
   async getLateComers(sessionId) {
     const snap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
     const records = snap.docs.map(d => ({ ...d.data(), id: d.id }));

@@ -10,8 +10,10 @@ export const TAB_VIEWS = {
     { key: 'team-calling',label: 'Team Calling',       roles: ['teamAdmin','superAdmin'] },
     { divider: true,      label: 'REPORTS' },
     { key: 'weekly',      label: 'Weekly Report' },
-    { key: 'submission',  label: 'Submission Reports' },
+    { key: 'submission',  label: 'Submission Report' },
+    { key: 'late',        label: 'Late Submissions' },
     { key: 'history',     label: 'Calling History' },
+    { key: 'not-interested', label: 'Not Interested' },
   ],
   attendance: [
     { key: 'live',       label: 'Live Attendance' },

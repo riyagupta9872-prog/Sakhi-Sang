@@ -585,6 +585,40 @@ input, select, textarea { font-family: inherit; }
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 14px; }
 .header-user-display { display: flex; align-items: center; gap: 10px; padding-right: 6px; }
 
+/* ── Stat pill drilldown ─────────────────────────────────────────────────── */
+.stat-pill-wrap { display: inline-flex; align-items: stretch; border-radius: var(--radius-full); overflow: hidden; }
+.stat-pill-drill { padding: 5px 10px; background: white; border: 1.5px solid var(--border); border-left: none; color: var(--text-muted); font-size: .9rem; cursor: pointer; transition: all .12s; border-radius: 0 var(--radius-full) var(--radius-full) 0; margin-left: -1px; }
+.stat-pill-drill:hover { background: #fffde7; color: #b8860b; border-color: #f5c518; }
+.stat-pill-wrap .stat-pill { border-radius: var(--radius-full) 0 0 var(--radius-full); }
+
+/* ── Bulk action bar ──────────────────────────────────────────────────── */
+.bulk-bar {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; background: #1a1a1a; color: white;
+  border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  z-index: 100; font-size: .82rem; flex-wrap: wrap; max-width: 92vw;
+}
+.bulk-bar .btn-outline { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); color: white; }
+.bulk-bar .btn-outline:hover { background: rgba(255,255,255,.18); border-color: #f5c518; color: #f5c518; }
+.bulk-bar .btn-icon { color: rgba(255,255,255,.7); }
+.bulk-bar .btn-icon:hover { color: white; background: rgba(255,255,255,.15); }
+@media (max-width: 720px) { .bulk-bar { bottom: calc(76px + env(safe-area-inset-bottom)); } }
+
+.row-selected td { background: rgba(245,197,24,.18) !important; }
+
+/* ── Late submission ───────────────────────────────────────────────────── */
+.badge-late { color: var(--color-warning); font-weight: 700; font-size: .9rem; }
+.row-recent-late td { background: rgba(220,38,38,.06); }
+
+/* ── Care detail row ───────────────────────────────────────────────────── */
+.care-detail-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.care-detail-row:last-child { border-bottom: none; }
+.care-detail-info { flex: 1; min-width: 0; }
+.care-detail-name { font-size: .88rem; margin-bottom: 4px; }
+.care-detail-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: .78rem; color: var(--text-muted); }
+.care-detail-actions { display: flex; gap: 2px; flex-shrink: 0; }
+
 /* ── Floating Action Button ────────────────────────────────────────────── */
 .fab {
   position: fixed;

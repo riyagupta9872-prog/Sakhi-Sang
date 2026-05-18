@@ -142,17 +142,32 @@ export function AuthProvider({ children }) {
     if (snap.exists()) setUserDoc({ id: currentUser.uid, ...snap.data() });
   }
 
+  // ── Service-devotee override (superAdmin can temporarily view as serviceDevotee) ──
+  const [overrideRole, setOverrideRoleState] = useState(() => {
+    return typeof window !== 'undefined' ? sessionStorage.getItem('overrideRole') || '' : '';
+  });
+  function setOverrideRole(role) {
+    if (role) sessionStorage.setItem('overrideRole', role);
+    else sessionStorage.removeItem('overrideRole');
+    setOverrideRoleState(role);
+  }
+  const trueRole = userDoc?.role || '';
+  const effectiveRole = (trueRole === 'superAdmin' && overrideRole) ? overrideRole : trueRole;
+
   const value = {
     currentUser,
     userDoc,
     authState,
     userId: currentUser?.uid,
     userName: userDoc?.displayName || currentUser?.email?.split('@')[0] || '',
-    userRole: userDoc?.role || '',
+    userRole: effectiveRole,
+    trueRole,
+    overrideRole,
+    setOverrideRole,
     userTeam: userDoc?.teamName || userDoc?.team_name || '',
     userPosition: userDoc?.position || '',
-    isSuper: userDoc?.role === 'superAdmin',
-    isTeamAdmin: userDoc?.role === 'teamAdmin' || userDoc?.role === 'superAdmin',
+    isSuper: effectiveRole === 'superAdmin',
+    isTeamAdmin: effectiveRole === 'teamAdmin' || effectiveRole === 'superAdmin',
     signup,
     login,
     logout,

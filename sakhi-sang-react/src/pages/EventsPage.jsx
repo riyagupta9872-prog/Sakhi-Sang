@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { DB } from '../firebase/db';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
@@ -34,11 +35,41 @@ function EventRoster({ event, onClose }) {
     load();
   }
 
+  async function exportRoster() {
+    // Enrich with full devotee info
+    const enriched = await Promise.all(devotees.map(async ed => {
+      const full = await DB.getDevotee(ed.devotee_id || ed.devoteeId);
+      return { ...ed, full };
+    }));
+    const rows = [['#','Name','Mobile','Team','Status','CR','Lifetime AT','Reference','Calling By']];
+    enriched.forEach((d, i) => {
+      const f = d.full || {};
+      rows.push([
+        i + 1,
+        d.devotee_name || d.devoteeName || f.name || '',
+        f.mobile || '',
+        f.team_name || d.team_name || '',
+        f.devotee_status || '',
+        f.chanting_rounds || 0,
+        f.lifetime_attendance || 0,
+        f.reference_by || '',
+        f.calling_by || '',
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Roster');
+    XLSX.writeFile(wb, `Event_${event.event_name.replace(/\s+/g,'_')}_Roster.xlsx`);
+  }
+
   return (
     <div>
-      <div className="event-roster-header">
-        <h3>{event.event_name}</h3>
-        <span className="text-muted">{formatDate(event.event_date)} · {devotees.length} registered</span>
+      <div className="event-roster-header section-header">
+        <div>
+          <h3>{event.event_name}</h3>
+          <span className="text-muted">{formatDate(event.event_date)} · {devotees.length} registered</span>
+        </div>
+        {devotees.length > 0 && <button className="btn-outline sm" onClick={exportRoster}>⬇ Excel Roster</button>}
       </div>
       <div className="form-group mt-3">
         <label className="form-label">Add Devotee</label>
