@@ -193,16 +193,23 @@ function CallsPanel({ weekDate, locked, cfg, sessionDate }) {
       DB.getTeamCallingStatus(weekDate, userRole, userTeam),
       DB.getMyCallingSubmission(weekDate, userId),
     ]);
-    setDevotees(list); setSubmission(sub); setLoading(false);
+    // For facilitator (serviceDevotee), show only their assigned devotees
+    const filtered = userRole === 'serviceDevotee'
+      ? list.filter(d => (d.calling_by || d.callingBy) === userName)
+      : list;
+    setDevotees(filtered); setSubmission(sub); setLoading(false);
   }
 
   useEffect(() => {
     let list = [...devotees];
     const q = search.toLowerCase();
     if (q) list = list.filter(d => (d.devotee_name || d.name || '').toLowerCase().includes(q) || (d.mobile || '').includes(q));
-    if (statusFilter === 'confirmed') list = list.filter(d => d.coming_status === 'Yes');
-    else if (statusFilter === 'reason') list = list.filter(d => d.calling_reason && d.coming_status !== 'Yes');
-    else if (statusFilter === 'not_called') list = list.filter(d => !d.coming_status && !d.calling_reason);
+    if (statusFilter === 'confirmed')         list = list.filter(d => d.coming_status === 'Yes');
+    else if (statusFilter === 'not_reached')  list = list.filter(d => ['did_not_pick','incoming_na','wrong_number'].includes(d.calling_reason));
+    else if (statusFilter === 'unavailable')  list = list.filter(d => ['out_of_station','exams'].includes(d.calling_reason));
+    else if (statusFilter === 'online')       list = list.filter(d => d.calling_reason === 'online_class');
+    else if (statusFilter === 'not_interested') list = list.filter(d => d.calling_reason === 'not_interested_now');
+    else if (statusFilter === 'not_called')   list = list.filter(d => !d.coming_status && !d.calling_reason);
     if (filters.team) list = list.filter(d => (d.team_name || d.teamName) === filters.team);
     if (filters.callingBy) list = list.filter(d => (d.calling_by || d.callingBy) === filters.callingBy);
     setFiltered(list);
@@ -234,21 +241,22 @@ function CallsPanel({ weekDate, locked, cfg, sessionDate }) {
   }
 
   const stats = {
-    confirmed:   devotees.filter(d => d.coming_status === 'Yes').length,
-    notReached:  devotees.filter(d => ['did_not_pick','incoming_na','wrong_number'].includes(d.calling_reason)).length,
-    unavailable: devotees.filter(d => ['out_of_station','exams'].includes(d.calling_reason)).length,
-    online:      devotees.filter(d => d.calling_reason === 'online_class').length,
-    festival:    devotees.filter(d => d.calling_reason === 'festival_calling').length,
-    notCalled:   devotees.filter(d => !d.coming_status && !d.calling_reason).length,
+    confirmed:    devotees.filter(d => d.coming_status === 'Yes').length,
+    notReached:   devotees.filter(d => ['did_not_pick','incoming_na','wrong_number'].includes(d.calling_reason)).length,
+    unavailable:  devotees.filter(d => ['out_of_station','exams'].includes(d.calling_reason)).length,
+    online:       devotees.filter(d => d.calling_reason === 'online_class').length,
+    notInterested:devotees.filter(d => d.calling_reason === 'not_interested_now').length,
+    notCalled:    devotees.filter(d => !d.coming_status && !d.calling_reason).length,
   };
 
+  // Matches original order/labels: Confirmed · Not reached · Unavailable · Online · Not Interested · Not called
   const PILLS = [
-    { key:'confirmed',  label:'Confirmed',   cls:'green',  val: stats.confirmed },
-    { key:'not_reached',label:'Not Reached',  cls:'red',    val: stats.notReached },
-    { key:'unavailable',label:'Unavailable',  cls:'orange', val: stats.unavailable },
-    { key:'online',     label:'Online',       cls:'blue',   val: stats.online },
-    { key:'festival',   label:'Festival',     cls:'purple', val: stats.festival },
-    { key:'not_called', label:'Not Called',   cls:'gray',   val: stats.notCalled },
+    { key:'confirmed',     label:'Confirmed',     cls:'green',  val: stats.confirmed },
+    { key:'not_reached',   label:'Not reached',   cls:'red',    val: stats.notReached },
+    { key:'unavailable',   label:'Unavailable',   cls:'orange', val: stats.unavailable },
+    { key:'online',        label:'Online',        cls:'blue',   val: stats.online },
+    { key:'not_interested',label:'Not Interested',cls:'purple', val: stats.notInterested },
+    { key:'not_called',    label:'Not called',    cls:'gray',   val: stats.notCalled },
   ];
 
   return (
@@ -270,12 +278,12 @@ function CallsPanel({ weekDate, locked, cfg, sessionDate }) {
         {PILLS.map(p => {
           // Compute the list for this stat for drilldown
           const matchesPill = (d) => {
-            if (p.key === 'confirmed')   return d.coming_status === 'Yes';
-            if (p.key === 'not_reached') return ['did_not_pick','incoming_na','wrong_number'].includes(d.calling_reason);
-            if (p.key === 'unavailable') return ['out_of_station','exams'].includes(d.calling_reason);
-            if (p.key === 'online')      return d.calling_reason === 'online_class';
-            if (p.key === 'festival')    return d.calling_reason === 'festival_calling';
-            if (p.key === 'not_called')  return !d.coming_status && !d.calling_reason;
+            if (p.key === 'confirmed')      return d.coming_status === 'Yes';
+            if (p.key === 'not_reached')    return ['did_not_pick','incoming_na','wrong_number'].includes(d.calling_reason);
+            if (p.key === 'unavailable')    return ['out_of_station','exams'].includes(d.calling_reason);
+            if (p.key === 'online')         return d.calling_reason === 'online_class';
+            if (p.key === 'not_interested') return d.calling_reason === 'not_interested_now';
+            if (p.key === 'not_called')     return !d.coming_status && !d.calling_reason;
             return false;
           };
           return (

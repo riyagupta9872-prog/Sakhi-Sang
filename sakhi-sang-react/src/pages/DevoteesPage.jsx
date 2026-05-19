@@ -14,6 +14,9 @@ import * as XLSX from 'xlsx';
 
 // ── DevoteeItem card ───────────────────────────────────────────────────────────
 function DevoteeItem({ d, onOpen }) {
+  // "Active" if not flagged inactive (soft-delete sets isActive=false; we don't show those)
+  // "INACTIVE" if inactivityFlag is true (no attendance in last 3 sessions)
+  const isInactive = !!d.inactivity_flag;
   return (
     <div className="devotee-item" onClick={() => onOpen(d.id)}>
       <div className="devotee-avatar">{avatarInitials(d.name)}</div>
@@ -22,16 +25,25 @@ function DevoteeItem({ d, onOpen }) {
           {d.name}
           {isBirthdayThisWeek(d.dob) && <span className="birthday-badge" title="Birthday this week">🎂</span>}
         </div>
+        <div className="devotee-mobile-row">
+          {d.mobile && <span className="devotee-mobile">{d.mobile}</span>}
+        </div>
         <div className="devotee-meta">
-          {d.mobile && <span>📱 {d.mobile}</span>}
+          <span className={`badge ${isInactive ? 'badge-inactive-soft' : 'badge-active-soft'}`}>
+            {isInactive ? 'INACTIVE' : 'Active'}
+          </span>
           {d.team_name && <span className="badge badge-team">{d.team_name}</span>}
           {d.devotee_status && <span className={`badge ${statusBadge(d.devotee_status)}`}>{d.devotee_status}</span>}
+          {d.reference_by && (
+            <span className="devotee-ref-chip" title={`Referred by ${d.reference_by}`}>
+              <span className="devotee-ref-icon">＋</span>{d.reference_by}
+            </span>
+          )}
         </div>
-        {d.reference_by && <div className="devotee-ref">Ref: {d.reference_by}</div>}
       </div>
       <div className="devotee-actions">
-        {d.mobile && <a href={`tel:${d.mobile}`} className="btn-icon" onClick={e => e.stopPropagation()}>📞</a>}
-        {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-icon" target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>💬</a>}
+        {d.mobile && <a href={`tel:${d.mobile}`} className="btn-icon icon-call" onClick={e => e.stopPropagation()} title="Call">📞</a>}
+        {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-icon icon-wa" target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} title="WhatsApp">💬</a>}
       </div>
     </div>
   );

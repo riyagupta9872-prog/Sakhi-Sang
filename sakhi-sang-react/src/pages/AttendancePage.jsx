@@ -411,8 +411,7 @@ export default function AttendancePage() {
           {view === 'live' && <FAB icon="+" label="Register" onClick={() => alert('To register a brand-new devotee, please use the Devotees tab.')} />}
           {view === 'live'       && <LivePanel sessionId={sessionId} sessionDate={sessionDate} />}
           {view === 'sheet'      && <SheetPanel />}
-          {view === 'leaderboard'&& <LeaderboardPanel sessionId={sessionId} sessionDate={sessionDate} />}
-          {view === 'teams'      && <TeamsPanel sessionId={sessionId} sessionDate={sessionDate} />}
+          {view === 'teams'      && <LeaderboardPanel sessionId={sessionId} sessionDate={sessionDate} />}
           {view === 'newcomers'  && <NewComersPanel sessionId={sessionId} />}
           {view === 'late'       && <LateComersPanel sessionId={sessionId} />}
           {view === 'serious'    && <SeriousPanel sessionId={sessionId} sessionDate={sessionDate} />}
