@@ -21,15 +21,45 @@ const reasonTemplate = v => CALLING_REASONS.find(r => r.value === v)?.template |
 const reasonLabel  = v => CALLING_REASONS.find(r => r.value === v)?.label || v || '—';
 const reasonNeeds  = v => CALLING_REASONS.find(r => r.value === v)?.needsDate || false;
 
-// ── Session chip ────────────────────────────────────────────────────────────
-function SessionChip({ cfg }) {
-  if (!cfg) return null;
+// ── Calling Status header card (matches original prominent banner) ─────────
+function CallingStatusHeader({ cfg, weekDate, sessionDate, onDownload }) {
+  if (!weekDate && !cfg) return null;
   return (
-    <div className="session-info-chip">
-      {cfg.topic && <span className="chip-topic">📖 {cfg.topic}</span>}
-      {cfg.speakerName && <span> · {cfg.speakerName}</span>}
-      {cfg.sessionDate && <span> · {formatDate(cfg.sessionDate)}</span>}
-      {cfg.sessionType === 'festival' && <span className="chip-festival"> 🎉 Festival</span>}
+    <div className="calling-status-card">
+      <div className="csc-header">
+        <span className="csc-icon">📞</span>
+        <span className="csc-title">Calling Status</span>
+      </div>
+      <div className="csc-dates">
+        {weekDate && (
+          <div className="csc-date-item">
+            <span className="csc-date-icon">📞</span>
+            <div>
+              <div className="csc-date-label">Calling Day</div>
+              <div className="csc-date-value">{formatDate(weekDate)}</div>
+            </div>
+          </div>
+        )}
+        {sessionDate && (
+          <div className="csc-date-item">
+            <span className="csc-date-icon">🪔</span>
+            <div>
+              <div className="csc-date-label">Session</div>
+              <div className="csc-date-value">{formatDate(sessionDate)}</div>
+            </div>
+          </div>
+        )}
+      </div>
+      {(cfg?.topic || cfg?.speakerName) && (
+        <div className="csc-meta">
+          {cfg.topic && <span>📖 {cfg.topic}</span>}
+          {cfg.speakerName && <span> · 🎤 {cfg.speakerName}</span>}
+          {cfg.sessionType === 'festival' && <span className="chip-festival"> · 🎉 Festival</span>}
+        </div>
+      )}
+      <button className="btn-outline csc-download" onClick={onDownload}>
+        <span style={{fontSize:'1rem'}}>📥</span> Download List
+      </button>
     </div>
   );
 }
@@ -143,7 +173,7 @@ function StatDrilldownModal({ open, title, list, onClose }) {
 }
 
 // ── Calls panel ─────────────────────────────────────────────────────────────
-function CallsPanel({ weekDate, locked, cfg }) {
+function CallsPanel({ weekDate, locked, cfg, sessionDate }) {
   const { showToast, filters } = useApp();
   const { userId, userName, userTeam, userRole } = useAuth();
   const [devotees, setDevotees] = useState([]);
@@ -223,7 +253,18 @@ function CallsPanel({ weekDate, locked, cfg }) {
 
   return (
     <div>
-      <SessionChip cfg={cfg} />
+      <CallingStatusHeader cfg={cfg} weekDate={weekDate} sessionDate={sessionDate} onDownload={() => {
+        const rows = [['Name','Mobile','Team','Calling By','Coming','Reason','Notes','Available From']];
+        devotees.forEach(d => rows.push([
+          d.devotee_name || d.name || '', d.mobile || '', d.team_name || d.teamName || '',
+          d.calling_by || d.callingBy || '', d.coming_status || '',
+          reasonLabel(d.calling_reason), d.calling_notes || '', d.available_from || '',
+        ]));
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Calling List');
+        XLSX.writeFile(wb, `Calling_List_${weekDate || 'unset'}.xlsx`);
+      }} />
       {!weekDate && <div className="locked-banner gray">⚙ No session configured. Configure from Dashboard → ⚙ Configure Session.</div>}
       <div className="calling-stats">
         {PILLS.map(p => {
@@ -640,7 +681,7 @@ export default function CallingPage() {
           </span>
         </div>
       )}
-      {view === 'calls'         && <CallsPanel weekDate={weekDate} locked={locked} cfg={cfg} />}
+      {view === 'calls'         && <CallsPanel weekDate={weekDate} locked={locked} cfg={cfg} sessionDate={cfg?.sessionDate || cfg?.session_date} />}
       {view === 'team-calling'  && <TeamCallingPanel weekDate={weekDate} />}
       {view === 'weekly'        && <WeeklyReport weekDate={weekDate} />}
       {view === 'submission'    && <SubmissionReport />}

@@ -10,6 +10,7 @@ import FAB from '../components/common/FAB';
 import ProfileGauge, { calcProfileCompletion } from '../components/common/ProfileGauge';
 import { ProfileHistoryModal, CallingHistoryModal, TeamChangeHistoryModal, CallingStatusChangesModal } from '../components/common/DevoteeHistoryModals';
 import ExcelImport from '../components/common/ExcelImport';
+import * as XLSX from 'xlsx';
 
 // ── DevoteeItem card ───────────────────────────────────────────────────────────
 function DevoteeItem({ d, onOpen }) {
@@ -441,26 +442,55 @@ export default function DevoteesPage() {
   function openEdit(id) { setEditId(id); setShowForm(true); setSelectedId(null); }
   function openNew() { setEditId(null); setShowForm(true); }
 
+  async function exportAllToExcel() {
+    const all = await DB.getDevotees({});
+    const rows = [['Name','Mobile','Mobile Alt','Email','DOB','Address','Team','Status','Reference','Calling By','Facilitator','Education','Profession','Rounds','Tilak','Kanthi','Gopi','Family Members','Joining Date','Lifetime AT','Remarks']];
+    all.forEach(d => rows.push([
+      d.name||'', d.mobile||'', d.mobile_alt||'', d.email||'', d.dob||'', d.address||'',
+      d.team_name||'', d.devotee_status||'', d.reference_by||'', d.calling_by||'',
+      d.facilitator||'', d.education||'', d.profession||'', d.chanting_rounds||0,
+      d.tilak?'Yes':'No', d.kanthi?'Yes':'No', d.gopi_dress?'Yes':'No',
+      d.family_members||'', d.joining_date||'', d.lifetime_attendance||0, d.remarks||'',
+    ]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Devotees');
+    XLSX.writeFile(wb, `Sakhi_Sang_Devotees_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
   return (
     <div className="tab-page">
-      {/* Toolbar */}
-      <div className="page-toolbar">
+      {/* Prominent profiles card with Import/Export buttons */}
+      {isSuper && (
+        <div className="devotee-profiles-card">
+          <div className="dpc-header">
+            <span className="dpc-icon">🌸</span>
+            <span className="dpc-title">Devotee Profiles</span>
+          </div>
+          <div className="dpc-actions">
+            <button className="btn-outline" onClick={() => setShowImport(true)}>
+              <span style={{fontSize:'1.1rem'}}>📥</span> Import Excel
+            </button>
+            <button className="btn-outline" onClick={exportAllToExcel}>
+              <span style={{fontSize:'1.1rem'}}>💾</span> Export DB
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Search + status filter */}
+      <div className="devotees-search-card">
         <div className="search-box">
-          <input className="form-input" placeholder="Search name or mobile…" value={search} onChange={e => setSearch(e.target.value)} />
+          <span className="search-icon">🔍</span>
+          <input className="form-input" placeholder="Search by name or mobile…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="form-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">All status</option>
+          <option value="">All Statuses</option>
           {['Most Serious','Serious','Expected to be Serious','New Devotee','Inactive'].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        {isTeamAdmin && (
-          <button className="btn-primary" onClick={openNew}>+ New Devotee</button>
-        )}
-        {isSuper && (
-          <button className="btn-outline" onClick={() => setShowImport(true)}>📤 Import Excel</button>
-        )}
       </div>
 
-      <div className="list-count">{loading ? 'Loading…' : `${devotees.length} devotee${devotees.length !== 1 ? 's' : ''}`}</div>
+      <div className="list-count">{loading ? 'Loading…' : `${devotees.length} devotee${devotees.length !== 1 ? 's' : ''} found`}</div>
 
       {loading ? (
         <div className="loading-spinner" />

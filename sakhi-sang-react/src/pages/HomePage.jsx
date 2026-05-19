@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { DB } from '../firebase/db';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatINR, toLocalDateStr, shiftDate } from '../utils/helpers';
 import Modal from '../components/common/Modal';
 
-// ── Birthday Popup ──────────────────────────────────────────────────────────
+// ── Birthday popup ──────────────────────────────────────────────────────────
 function BirthdayPopup({ list, onClose }) {
   if (!list.length) return null;
   return (
@@ -16,23 +16,181 @@ function BirthdayPopup({ list, onClose }) {
             <div className="devotee-avatar sm">🎂</div>
             <div>
               <strong>{d.name}</strong>
-              <div className="text-muted" style={{ fontSize: '.78rem' }}>
-                {d.team_name} {d.dob ? `· ${new Date(d.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}` : ''}
+              <div className="text-muted" style={{fontSize:'.78rem'}}>
+                {d.team_name} {d.dob ? `· ${new Date(d.dob).toLocaleDateString('en-IN',{day:'numeric',month:'long'})}` : ''}
               </div>
             </div>
             {d.mobile && <a href={`https://wa.me/91${d.mobile}`} className="btn-icon" target="_blank" rel="noreferrer">💬</a>}
           </div>
         ))}
       </div>
-      <div className="form-actions">
-        <button className="btn-primary btn-full" onClick={onClose}>Close</button>
-      </div>
+      <div className="form-actions"><button className="btn-primary btn-full" onClick={onClose}>Close</button></div>
     </Modal>
   );
 }
 
-// ── Session Config ──────────────────────────────────────────────────────────
-function SessionConfig({ open, onClose }) {
+// ── KPI tile (matches original layout: icon top-left, value, label) ────────
+function KPI({ icon, iconBg, value, label }) {
+  return (
+    <div className="kpi-tile">
+      <div className="kpi-tile-icon" style={{ background: iconBg }}>{icon}</div>
+      <div className="kpi-tile-body">
+        <div className="kpi-tile-value">{value ?? '—'}</div>
+        <div className="kpi-tile-label">{label}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Today's Snapshot Banner ────────────────────────────────────────────────
+function SnapshotBanner({ onRefresh }) {
+  return (
+    <div className="snapshot-banner">
+      <div className="snapshot-banner-left">
+        <div className="snapshot-icon">ॐ</div>
+        <div>
+          <div className="snapshot-title">Hare Krishna!</div>
+          <div className="snapshot-subtitle">Today's snapshot</div>
+        </div>
+      </div>
+      <button className="snapshot-refresh" onClick={onRefresh} title="Refresh">↻</button>
+    </div>
+  );
+}
+
+// ── Dashboard KPIs ──────────────────────────────────────────────────────────
+function DashboardKPIs({ sessionId, sessionDate, generation }) {
+  const { filters } = useApp();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!sessionId) { setData(null); return; }
+    setLoading(true);
+    try {
+      const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
+      const sun = shiftDate(sat, -6);
+
+      const [att, csSnap, books, services, regs, donations] = await Promise.all([
+        DB.getSessionAttendance(sessionId),
+        DB.getCallingReport(sat),
+        DB.getBookDistributions({ startDate: sun, endDate: sat }),
+        DB.getServices({ startDate: sun, endDate: sat }),
+        DB.getRegistrations({ startDate: sun, endDate: sat }),
+        DB.getDonations({ startDate: sun, endDate: sat }),
+      ]);
+
+      // Team filter
+      const filterTeam = list => filters.team ? list.filter(e => (e.team_name||e.teamName) === filters.team) : list;
+      const attF = filterTeam(att);
+      const booksF = filterTeam(books);
+      const servicesF = filterTeam(services);
+      const regsF = filterTeam(regs);
+      const donationsF = filterTeam(donations);
+
+      // Calling accuracy = (came / yes) * 100, computed across teams in report
+      let totalYes = 0, totalCame = 0;
+      Object.entries(csSnap).forEach(([team, callers]) => {
+        if (filters.team && team !== filters.team) return;
+        Object.values(callers).forEach(s => { totalYes += s.yes; totalCame += s.came; });
+      });
+      const accuracy = totalYes > 0 ? Math.round((totalCame / totalYes) * 100) : null;
+
+      setData({
+        present: attF.length,
+        accuracy,
+        books: booksF.reduce((s,b)=>s+(Number(b.quantity)||0), 0),
+        services: servicesF.length,
+        registrations: regsF.reduce((s,r)=>s+(Number(r.count)||0), 0),
+        donations: donationsF.reduce((s,d)=>s+(Number(d.amount)||0), 0),
+      });
+    } catch (e) { console.error('Dashboard KPIs:', e); }
+    finally { setLoading(false); }
+  }, [sessionId, sessionDate, filters.team, generation]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <div className="loading-spinner" />;
+
+  return (
+    <div className="kpi-tiles-grid">
+      <KPI icon="✓" iconBg="rgba(22,163,74,.15)"   value={data?.present}                              label="Attended" />
+      <KPI icon="📞" iconBg="rgba(37,99,235,.15)"   value={data?.accuracy != null ? `${data.accuracy}%` : '—'} label="Calling Accuracy" />
+      <KPI icon="📚" iconBg="rgba(245,197,24,.18)" value={data?.books}                                 label="Books" />
+      <KPI icon="🤲" iconBg="rgba(217,119,6,.15)"  value={data?.services}                              label="Services" />
+      <KPI icon="📋" iconBg="rgba(124,58,237,.15)" value={data?.registrations}                         label="Registrations" />
+      <KPI icon="💖" iconBg="rgba(236,72,153,.15)" value={data?.donations != null ? formatINR(data.donations) : '—'} label="Donation ₹" />
+    </div>
+  );
+}
+
+// ── Coordinator Performance ─────────────────────────────────────────────────
+function CoordinatorPerformance({ sessionId, sessionDate, generation }) {
+  const { filters } = useApp();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!sessionId) return;
+      setLoading(true);
+      try {
+        const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
+        const [report, teams] = await Promise.all([
+          DB.getCallingReport(sat),
+          DB.getTeamsReport(sat, sessionId),
+        ]);
+
+        // Build flat list: one row per coordinator
+        const flat = [];
+        Object.entries(report).forEach(([team, callers]) => {
+          if (filters.team && team !== filters.team) return;
+          Object.entries(callers).forEach(([caller, s]) => {
+            flat.push({ team, caller, called: s.called, yes: s.yes, came: s.came });
+          });
+        });
+        // Sort by came desc
+        flat.sort((a, b) => b.came - a.came || (a.team + a.caller).localeCompare(b.team + b.caller));
+        setRows(flat);
+      } catch (e) { console.error('CoordinatorPerformance:', e); }
+      finally { setLoading(false); }
+    }
+    load();
+  }, [sessionId, sessionDate, filters.team, generation]);
+
+  return (
+    <div className="coordinator-performance">
+      <h3 className="cp-title">📋 Coordinator Performance</h3>
+      {loading ? <div className="loading-spinner" /> :
+        rows.length === 0
+          ? <div className="empty-state">No submitted calling data for this session yet</div>
+          : <div className="table-scroll">
+              <table className="simple-table">
+                <thead><tr><th>Team</th><th>Coordinator</th><th>Called</th><th>Confirmed</th><th>Attended</th><th>Accuracy</th></tr></thead>
+                <tbody>
+                  {rows.map((r, i) => {
+                    const acc = r.yes > 0 ? Math.round((r.came / r.yes) * 100) : 0;
+                    return (
+                      <tr key={i}>
+                        <td><strong>{r.team}</strong></td>
+                        <td>{r.caller}</td>
+                        <td>{r.called}</td>
+                        <td>{r.yes}</td>
+                        <td><strong>{r.came}</strong></td>
+                        <td>{r.yes > 0 ? <span className={`pct-badge pct-${acc >= 80 ? 'good' : acc >= 50 ? 'ok' : 'low'}`}>{acc}%</span> : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+      }
+    </div>
+  );
+}
+
+// ── Session Config modal ────────────────────────────────────────────────────
+function SessionConfigModal({ open, onClose }) {
   const { showToast } = useApp();
   const [form, setForm] = useState({ callingDate: '', sessionDate: '', topic: '', speakerName: '', sessionType: 'regular' });
   const [loading, setLoading] = useState(false);
@@ -57,11 +215,9 @@ function SessionConfig({ open, onClose }) {
     });
     if (form.sessionDate) await DB.getOrCreateSession(form.sessionDate);
     showToast('Session configured', 'success');
-    setLoading(false);
-    onClose();
+    setLoading(false); onClose();
   }
-
-  function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function setF(k, v) { setForm(p => ({ ...p, [k]: v })); }
 
   return (
     <Modal open={open} onClose={onClose} title="Configure Session">
@@ -77,9 +233,7 @@ function SessionConfig({ open, onClose }) {
         <div className="form-group">
           <label className="form-label">Session Type</label>
           <select className="form-select" value={form.sessionType} onChange={e => setF('sessionType', e.target.value)}>
-            <option value="regular">Regular</option>
-            <option value="festival">Festival</option>
-            <option value="special">Special</option>
+            <option value="regular">Regular</option><option value="festival">Festival</option><option value="special">Special</option>
           </select>
         </div>
       </div>
@@ -91,69 +245,17 @@ function SessionConfig({ open, onClose }) {
   );
 }
 
-// ── Dashboard KPIs ──────────────────────────────────────────────────────────
-function DashboardKPIs({ sessionId, sessionDate }) {
-  const { filters } = useApp();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => { if (sessionId) load(); }, [sessionId, filters.team]);
-
-  async function load() {
-    setLoading(true);
-    const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
-    const sun = shiftDate(sat, -6);
-    const [att, books, services, registrations, donations] = await Promise.all([
-      DB.getSessionAttendance(sessionId),
-      DB.getBookDistributions({ startDate: sun, endDate: sat }),
-      DB.getServices({ startDate: sun, endDate: sat }),
-      DB.getRegistrations({ startDate: sun, endDate: sat }),
-      DB.getDonations({ startDate: sun, endDate: sat }),
-    ]);
-    setData({
-      present: att.length,
-      newDevotees: att.filter(a => a.is_new_devotee).length,
-      books: books.reduce((s, b) => s + (Number(b.quantity) || 0), 0),
-      services: services.length,
-      registrations: registrations.reduce((s, r) => s + (Number(r.count) || 0), 0),
-      donations: donations.reduce((s, d) => s + (Number(d.amount) || 0), 0),
-    });
-    setLoading(false);
-  }
-
-  if (loading) return <div className="loading-spinner" />;
-  if (!data) return null;
-
-  const kpis = [
-    { label: 'Present', value: data.present, icon: '✓' },
-    { label: 'New Comers', value: data.newDevotees, icon: '⭐' },
-    { label: 'Books', value: data.books, icon: '📚' },
-    { label: 'Service', value: data.services, icon: '🤲' },
-    { label: 'Donations', value: formatINR(data.donations), icon: '💰' },
-  ];
-
-  return (
-    <div className="dashboard-kpis">
-      {kpis.map(k => (
-        <div key={k.label} className="kpi-card">
-          <div className="kpi-icon">{k.icon}</div>
-          <div className="kpi-value">{k.value}</div>
-          <div className="kpi-label">{k.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Main HomePage ───────────────────────────────────────────────────────────
 export default function HomePage() {
   const { userName, isSuper } = useAuth();
+  const { filters } = useApp();
   const [showSessionConfig, setShowSessionConfig] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [sessionDate, setSessionDate] = useState('');
   const [cfg, setCfg] = useState(null);
   const [birthdays, setBirthdays] = useState([]);
   const [showBirthdays, setShowBirthdays] = useState(false);
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     async function init() {
@@ -165,10 +267,29 @@ export default function HomePage() {
       setSessionId(s.id);
       setSessionDate(s.session_date);
       setCfg(c);
-      if (bd.length) { setBirthdays(bd); setShowBirthdays(true); }
+      // Only auto-show birthday popup once per day
+      const lastShown = sessionStorage.getItem('birthdayShown');
+      const today = toLocalDateStr();
+      if (bd.length && lastShown !== today) {
+        setBirthdays(bd);
+        setShowBirthdays(true);
+        sessionStorage.setItem('birthdayShown', today);
+      } else {
+        setBirthdays(bd);
+      }
     }
     init();
   }, []);
+
+  // Sync with master filter
+  useEffect(() => {
+    if (filters.sessionId) setSessionId(filters.sessionId);
+    if (filters.sessionDate) setSessionDate(filters.sessionDate);
+  }, [filters.sessionId, filters.sessionDate]);
+
+  function refreshAll() {
+    setGeneration(g => g + 1);
+  }
 
   const firstName = userName?.split(' ')[0] || 'Devotee';
 
@@ -176,24 +297,26 @@ export default function HomePage() {
     <div className="tab-page">
       <BirthdayPopup list={birthdays} onClose={() => setShowBirthdays(false)} />
 
-      <div className="home-greeting">
-        <h2 className="greeting-text">Hare Krishna, {firstName}! 🙏</h2>
-        {cfg && (
-          <div className="session-chip">
-            {cfg.topic && <span>📖 {cfg.topic}</span>}
-            {cfg.sessionDate && <span> · {formatDate(cfg.sessionDate || cfg.session_date)}</span>}
-            {cfg.sessionType === 'festival' && <span> · 🎉 Festival</span>}
-          </div>
-        )}
+      {/* Snapshot banner — matches original "Hare Krishna! Today's snapshot" */}
+      <SnapshotBanner onRefresh={refreshAll} />
+
+      {/* KPI tiles */}
+      {sessionId && <DashboardKPIs sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
+
+      {/* Coordinator Performance */}
+      {sessionId && <CoordinatorPerformance sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
+
+      {/* Greeting + session config (compact, below content) */}
+      <div className="home-greeting compact">
+        <span>Hare Krishna, <strong>{firstName}</strong>! 🙏</span>
+        {cfg?.sessionDate && <span className="text-muted ml-2">· Next: {formatDate(cfg.sessionDate || cfg.session_date)}{cfg.topic ? ` · ${cfg.topic}` : ''}</span>}
         <div className="home-actions">
           {isSuper && <button className="btn-outline sm" onClick={() => setShowSessionConfig(true)}>⚙ Configure Session</button>}
           {birthdays.length > 0 && <button className="btn-outline sm" onClick={() => setShowBirthdays(true)}>🎂 {birthdays.length} Birthday{birthdays.length > 1 ? 's' : ''}</button>}
         </div>
       </div>
 
-      {sessionId && <DashboardKPIs sessionId={sessionId} sessionDate={sessionDate} />}
-
-      {isSuper && <SessionConfig open={showSessionConfig} onClose={() => setShowSessionConfig(false)} />}
+      {isSuper && <SessionConfigModal open={showSessionConfig} onClose={() => setShowSessionConfig(false)} />}
     </div>
   );
 }

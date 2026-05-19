@@ -502,6 +502,79 @@ input, select, textarea { font-family: inherit; }
 .stat-pill.purple { border-color: #7c3aed; color: #7c3aed; }
 .stat-pill.purple.active { background: #7c3aed; color: white; }
 
+/* ── Filter ribbon caption ─────────────────────────────────────────────── */
+.filter-ribbon-wrap { background: white; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.filter-ribbon { border-bottom: none; }
+.filter-caption { padding: 0 18px 8px; font-size: .82rem; color: var(--text-muted); font-style: italic; }
+.filter-caption strong { color: #1a1a1a; font-style: normal; font-weight: 700; }
+.fr-chip-icon { font-size: .9rem; }
+.fr-chip-sep { color: rgba(0,0,0,.2); }
+.fr-chip-x { font-size: .65rem; margin-left: 3px; padding: 2px 4px; border-radius: 50%; opacity: .6; cursor: pointer; }
+.fr-chip-x:hover { opacity: 1; background: rgba(0,0,0,.1); }
+.fr-clear-all { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: var(--radius-full); border: 1px dashed #d4a900; background: #fffde7; color: #b8860b; font-size: .76rem; font-weight: 600; cursor: pointer; }
+.fr-clear-all:hover { background: #fff9c4; }
+
+/* ── Snapshot banner (Home) ────────────────────────────────────────────── */
+.snapshot-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px; margin-bottom: 16px;
+  background: linear-gradient(135deg, #d4a900 0%, #f5c518 100%);
+  border-radius: var(--radius-lg); color: #1a1a1a;
+  box-shadow: 0 4px 14px rgba(245,197,24,.35);
+}
+.snapshot-banner-left { display: flex; align-items: center; gap: 14px; }
+.snapshot-icon { font-size: 2rem; line-height: 1; opacity: .9; }
+.snapshot-title { font-family: 'Cinzel', serif; font-size: 1.25rem; font-weight: 700; line-height: 1.1; }
+.snapshot-subtitle { font-size: .85rem; opacity: .85; margin-top: 2px; }
+.snapshot-refresh {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: rgba(0,0,0,.15); color: #1a1a1a;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; transition: background .15s, transform .3s;
+}
+.snapshot-refresh:hover { background: rgba(0,0,0,.25); transform: rotate(180deg); }
+
+/* ── KPI tiles ─────────────────────────────────────────────────────────── */
+.kpi-tiles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi-tile { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: white; border-radius: var(--radius-md); border: 1px solid var(--border); box-shadow: var(--shadow-xs); }
+.kpi-tile-icon { width: 42px; height: 42px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+.kpi-tile-body { flex: 1; min-width: 0; }
+.kpi-tile-value { font-size: 1.4rem; font-weight: 700; color: #1a1a1a; line-height: 1.1; }
+.kpi-tile-label { font-size: .73rem; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* ── Coordinator Performance ───────────────────────────────────────────── */
+.coordinator-performance { background: white; border-radius: var(--radius-md); padding: 16px; border: 1px solid var(--border); margin-bottom: 20px; }
+.cp-title { font-size: .85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
+
+/* Home greeting compact */
+.home-greeting.compact { padding: 10px 12px; background: #fffde7; border: 1px solid #fde68a; border-radius: var(--radius-md); margin-top: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .82rem; }
+.home-greeting.compact .home-actions { margin-left: auto; }
+
+/* ── Devotee Profiles card ─────────────────────────────────────────────── */
+.devotee-profiles-card { background: white; border: 1px solid #fde68a; border-left: 4px solid #f5c518; border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 12px; box-shadow: var(--shadow-xs); }
+.dpc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.dpc-icon { font-size: 1.3rem; }
+.dpc-title { font-family: 'Cinzel', serif; font-size: 1rem; font-weight: 700; color: #1a1a1a; text-transform: uppercase; letter-spacing: .04em; }
+.dpc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.devotees-search-card { background: white; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.devotees-search-card .search-box { background: var(--brand-light); border-radius: var(--radius-md); padding: 4px 8px; }
+.devotees-search-card .search-box .form-input { background: transparent; border: none; }
+.devotees-search-card .search-box .form-input:focus { box-shadow: none; }
+.search-icon { font-size: .9rem; color: var(--text-muted); padding-left: 6px; }
+
+/* ── Calling Status header card ────────────────────────────────────────── */
+.calling-status-card { background: white; border: 1px solid #fde68a; border-left: 4px solid #f5c518; border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow-xs); }
+.csc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.csc-icon { font-size: 1.4rem; color: #b8860b; }
+.csc-title { font-family: 'Cinzel', serif; font-size: 1.05rem; font-weight: 700; color: #1a1a1a; text-transform: uppercase; letter-spacing: .04em; }
+.csc-dates { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 8px; }
+.csc-date-item { display: flex; align-items: center; gap: 10px; }
+.csc-date-icon { font-size: 1.1rem; color: #b8860b; }
+.csc-date-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.csc-date-value { font-size: .92rem; font-weight: 700; color: #1a1a1a; }
+.csc-meta { font-size: .82rem; color: var(--text-muted); margin-bottom: 10px; padding: 6px 0; border-top: 1px dashed var(--border); }
+.csc-download { width: fit-content; }
+
 /* ── Override mode banner ──────────────────────────────────────────────── */
 .override-banner {
   display: flex; align-items: center; justify-content: center; gap: 10px;
