@@ -957,6 +957,83 @@ export const DB = {
     } catch (err) { console.error('getTeamsReport:', err); return []; }
   },
 
+  // Full coordinator grid: per-team per-coordinator totals incl. activities
+  async getCoordinatorPerformance(weekDate, sessionId, sessionDate) {
+    try {
+      const sat = weekDate;
+      const sun = sessionDate;
+      const sunMinus6 = sun ? shiftDate(sun, -6) : sat ? shiftDate(sat, -5) : null;
+      const startDate = sunMinus6;
+      const endDate = sat || sun;
+
+      const [report, targets, books, services, regs, donations, devotees] = await Promise.all([
+        sat ? this.getCallingReport(sat) : Promise.resolve({}),
+        this.getAttendanceTargets(),
+        startDate && endDate ? this.getBookDistributions({ startDate, endDate }) : Promise.resolve([]),
+        startDate && endDate ? this.getServices({ startDate, endDate }) : Promise.resolve([]),
+        startDate && endDate ? this.getRegistrations({ startDate, endDate }) : Promise.resolve([]),
+        startDate && endDate ? this.getDonations({ startDate, endDate }) : Promise.resolve([]),
+        this.getDevotees({}),
+      ]);
+
+      // Attribute each activity to a coordinator via the devotee's callingBy
+      const devById = {};
+      devotees.forEach(d => { devById[d.id] = d; });
+
+      const actByCaller = {}; // key: team|||caller
+      function record(team, caller, field, val) {
+        const teamKey = team || 'Unknown';
+        const callerKey = caller || '(team only)';
+        const k = `${teamKey}|||${callerKey}`;
+        if (!actByCaller[k]) actByCaller[k] = { books: 0, services: 0, registrations: 0, donations: 0 };
+        actByCaller[k][field] += val;
+      }
+
+      books.forEach(b => {
+        const team = b.teamName || b.team_name;
+        const dev = b.devoteeId ? devById[b.devoteeId] : null;
+        record(team, dev?.calling_by || dev?.callingBy || '', 'books', Number(b.quantity) || 0);
+      });
+      services.forEach(s => {
+        const team = s.teamName || s.team_name;
+        const dev = s.devoteeId ? devById[s.devoteeId] : null;
+        record(team, dev?.calling_by || dev?.callingBy || '', 'services', 1);
+      });
+      regs.forEach(r => {
+        const team = r.teamName || r.team_name;
+        const dev = r.devoteeId ? devById[r.devoteeId] : null;
+        record(team, dev?.calling_by || dev?.callingBy || '', 'registrations', Number(r.count) || 0);
+      });
+      donations.forEach(d => {
+        record(d.teamName || d.team_name, '', 'donations', Number(d.amount) || 0);
+      });
+
+      // Build coordinator rows from the calling report
+      const rows = [];
+      Object.entries(report).forEach(([team, callers]) => {
+        Object.entries(callers).forEach(([caller, s]) => {
+          const activity = actByCaller[`${team}|||${caller}`] || { books: 0, services: 0, registrations: 0, donations: 0 };
+          const target = targets.teams?.[team] || targets.global || 0;
+          const pct = target > 0 ? Math.round((s.came / target) * 100) : (s.yes > 0 ? Math.round((s.came / s.yes) * 100) : 0);
+          rows.push({
+            team, caller,
+            called: s.called, yes: s.yes, attended: s.came,
+            target, percentage: pct, ...activity,
+          });
+        });
+      });
+      rows.sort((a, b) =>
+        (a.team || '').localeCompare(b.team || '') ||
+        b.attended - a.attended ||
+        (a.caller || '').localeCompare(b.caller || '')
+      );
+      return rows;
+    } catch (err) {
+      console.error('getCoordinatorPerformance:', err);
+      return [];
+    }
+  },
+
   async getMgmtSeparateLists() {
     try {
       const all = await getCache();

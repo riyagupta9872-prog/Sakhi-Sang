@@ -545,6 +545,12 @@ input, select, textarea { font-family: inherit; }
 /* ── Coordinator Performance ───────────────────────────────────────────── */
 .coordinator-performance { background: white; border-radius: var(--radius-md); padding: 16px; border: 1px solid var(--border); margin-bottom: 20px; }
 .cp-title { font-size: .85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
+.coordinator-grid { font-size: .8rem; }
+.coordinator-grid th { padding: 8px 6px; font-size: .72rem; white-space: nowrap; }
+.coordinator-grid td { padding: 6px 8px; vertical-align: middle; }
+.coordinator-grid .team-cell { background: #fffde7; border-right: 2px solid #f5c518; vertical-align: middle; text-align: center; font-size: .85rem; }
+.team-subtotal-row td { background: rgba(245,197,24,.10); border-top: 1px solid #fde68a; font-size: .78rem; }
+.team-subtotal-row em { color: var(--text-muted); font-style: italic; }
 
 /* Home greeting compact */
 .home-greeting.compact { padding: 10px 12px; background: #fffde7; border: 1px solid #fde68a; border-radius: var(--radius-md); margin-top: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .82rem; }

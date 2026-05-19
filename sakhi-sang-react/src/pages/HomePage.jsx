@@ -80,7 +80,6 @@ function DashboardKPIs({ sessionId, sessionDate, generation }) {
         DB.getDonations({ startDate: sun, endDate: sat }),
       ]);
 
-      // Team filter
       const filterTeam = list => filters.team ? list.filter(e => (e.team_name||e.teamName) === filters.team) : list;
       const attF = filterTeam(att);
       const booksF = filterTeam(books);
@@ -88,16 +87,21 @@ function DashboardKPIs({ sessionId, sessionDate, generation }) {
       const regsF = filterTeam(regs);
       const donationsF = filterTeam(donations);
 
-      // Calling accuracy = (came / yes) * 100, computed across teams in report
-      let totalYes = 0, totalCame = 0;
+      // Calling list size + confirmed + came → calling accuracy
+      let callingListCount = 0, totalYes = 0, totalCame = 0;
       Object.entries(csSnap).forEach(([team, callers]) => {
         if (filters.team && team !== filters.team) return;
-        Object.values(callers).forEach(s => { totalYes += s.yes; totalCame += s.came; });
+        Object.values(callers).forEach(s => {
+          callingListCount += s.called;
+          totalYes += s.yes;
+          totalCame += s.came;
+        });
       });
       const accuracy = totalYes > 0 ? Math.round((totalCame / totalYes) * 100) : null;
 
       setData({
         present: attF.length,
+        callingListCount,
         accuracy,
         books: booksF.reduce((s,b)=>s+(Number(b.quantity)||0), 0),
         services: servicesF.length,
@@ -112,9 +116,14 @@ function DashboardKPIs({ sessionId, sessionDate, generation }) {
 
   if (loading) return <div className="loading-spinner" />;
 
+  // Attended KPI shows "X/Y" (attended / calling-list size)
+  const attendedValue = data
+    ? (data.callingListCount > 0 ? `${data.present}/${data.callingListCount}` : data.present)
+    : '—';
+
   return (
     <div className="kpi-tiles-grid">
-      <KPI icon="✓" iconBg="rgba(22,163,74,.15)"   value={data?.present}                              label="Attended" />
+      <KPI icon="✓" iconBg="rgba(22,163,74,.15)"   value={attendedValue}                                label="Attended" />
       <KPI icon="📞" iconBg="rgba(37,99,235,.15)"   value={data?.accuracy != null ? `${data.accuracy}%` : '—'} label="Calling Accuracy" />
       <KPI icon="📚" iconBg="rgba(245,197,24,.18)" value={data?.books}                                 label="Books" />
       <KPI icon="🤲" iconBg="rgba(217,119,6,.15)"  value={data?.services}                              label="Services" />
@@ -124,7 +133,7 @@ function DashboardKPIs({ sessionId, sessionDate, generation }) {
   );
 }
 
-// ── Coordinator Performance ─────────────────────────────────────────────────
+// ── Coordinator Performance — full 11-column grid ─────────────────────────
 function CoordinatorPerformance({ sessionId, sessionDate, generation }) {
   const { filters } = useApp();
   const [rows, setRows] = useState([]);
@@ -136,27 +145,25 @@ function CoordinatorPerformance({ sessionId, sessionDate, generation }) {
       setLoading(true);
       try {
         const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
-        const [report, teams] = await Promise.all([
-          DB.getCallingReport(sat),
-          DB.getTeamsReport(sat, sessionId),
-        ]);
-
-        // Build flat list: one row per coordinator
-        const flat = [];
-        Object.entries(report).forEach(([team, callers]) => {
-          if (filters.team && team !== filters.team) return;
-          Object.entries(callers).forEach(([caller, s]) => {
-            flat.push({ team, caller, called: s.called, yes: s.yes, came: s.came });
-          });
-        });
-        // Sort by came desc
-        flat.sort((a, b) => b.came - a.came || (a.team + a.caller).localeCompare(b.team + b.caller));
-        setRows(flat);
+        const all = await DB.getCoordinatorPerformance(sat, sessionId, sessionDate);
+        const filtered = filters.team ? all.filter(r => r.team === filters.team) : all;
+        setRows(filtered);
       } catch (e) { console.error('CoordinatorPerformance:', e); }
       finally { setLoading(false); }
     }
     load();
   }, [sessionId, sessionDate, filters.team, generation]);
+
+  // Group rows by team for visual separation
+  const byTeam = {};
+  rows.forEach(r => { (byTeam[r.team] = byTeam[r.team] || []).push(r); });
+
+  // Grand totals
+  const totals = rows.reduce((a, r) => ({
+    called: a.called + r.called, yes: a.yes + r.yes, attended: a.attended + r.attended,
+    books: a.books + r.books, services: a.services + r.services,
+    registrations: a.registrations + r.registrations, donations: a.donations + r.donations,
+  }), { called: 0, yes: 0, attended: 0, books: 0, services: 0, registrations: 0, donations: 0 });
 
   return (
     <div className="coordinator-performance">
@@ -165,22 +172,79 @@ function CoordinatorPerformance({ sessionId, sessionDate, generation }) {
         rows.length === 0
           ? <div className="empty-state">No submitted calling data for this session yet</div>
           : <div className="table-scroll">
-              <table className="simple-table">
-                <thead><tr><th>Team</th><th>Coordinator</th><th>Called</th><th>Confirmed</th><th>Attended</th><th>Accuracy</th></tr></thead>
+              <table className="simple-table coordinator-grid">
+                <thead>
+                  <tr>
+                    <th>Team</th>
+                    <th>Coordinator</th>
+                    <th title="Devotees called">Called</th>
+                    <th title="Said yes">Confirmed</th>
+                    <th title="Actually attended">Attended</th>
+                    <th>Target</th>
+                    <th>%</th>
+                    <th title="Books distributed">📚</th>
+                    <th title="Service entries">🤲</th>
+                    <th title="Registrations">📋</th>
+                    <th title="Donations ₹">💰</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {rows.map((r, i) => {
-                    const acc = r.yes > 0 ? Math.round((r.came / r.yes) * 100) : 0;
+                  {Object.entries(byTeam).map(([team, list]) => {
+                    const tt = list.reduce((a, r) => ({
+                      called: a.called + r.called, yes: a.yes + r.yes, attended: a.attended + r.attended,
+                      books: a.books + r.books, services: a.services + r.services,
+                      registrations: a.registrations + r.registrations, donations: a.donations + r.donations,
+                    }), { called: 0, yes: 0, attended: 0, books: 0, services: 0, registrations: 0, donations: 0 });
                     return (
-                      <tr key={i}>
-                        <td><strong>{r.team}</strong></td>
-                        <td>{r.caller}</td>
-                        <td>{r.called}</td>
-                        <td>{r.yes}</td>
-                        <td><strong>{r.came}</strong></td>
-                        <td>{r.yes > 0 ? <span className={`pct-badge pct-${acc >= 80 ? 'good' : acc >= 50 ? 'ok' : 'low'}`}>{acc}%</span> : '—'}</td>
-                      </tr>
+                      <React.Fragment key={team}>
+                        {list.map((r, i) => (
+                          <tr key={`${team}-${i}`}>
+                            {i === 0
+                              ? <td rowSpan={list.length + 1} className="team-cell"><strong>{team}</strong></td>
+                              : null}
+                            <td>{r.caller}</td>
+                            <td>{r.called}</td>
+                            <td>{r.yes}</td>
+                            <td><strong>{r.attended}</strong></td>
+                            <td>{r.target || '—'}</td>
+                            <td>
+                              {r.target > 0
+                                ? <span className={`pct-badge pct-${r.percentage >= 80 ? 'good' : r.percentage >= 50 ? 'ok' : 'low'}`}>{r.percentage}%</span>
+                                : '—'}
+                            </td>
+                            <td>{r.books || '—'}</td>
+                            <td>{r.services || '—'}</td>
+                            <td>{r.registrations || '—'}</td>
+                            <td>{r.donations ? formatINR(r.donations) : '—'}</td>
+                          </tr>
+                        ))}
+                        <tr className="team-subtotal-row">
+                          <td><em>Total</em></td>
+                          <td>{tt.called}</td>
+                          <td>{tt.yes}</td>
+                          <td><strong>{tt.attended}</strong></td>
+                          <td></td>
+                          <td></td>
+                          <td>{tt.books || '—'}</td>
+                          <td>{tt.services || '—'}</td>
+                          <td>{tt.registrations || '—'}</td>
+                          <td>{tt.donations ? formatINR(tt.donations) : '—'}</td>
+                        </tr>
+                      </React.Fragment>
                     );
                   })}
+                  <tr className="grand-total-row">
+                    <td colSpan={2}><strong>Grand Total</strong></td>
+                    <td><strong>{totals.called}</strong></td>
+                    <td><strong>{totals.yes}</strong></td>
+                    <td><strong>{totals.attended}</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td><strong>{totals.books || '—'}</strong></td>
+                    <td><strong>{totals.services || '—'}</strong></td>
+                    <td><strong>{totals.registrations || '—'}</strong></td>
+                    <td><strong>{totals.donations ? formatINR(totals.donations) : '—'}</strong></td>
+                  </tr>
                 </tbody>
               </table>
             </div>
