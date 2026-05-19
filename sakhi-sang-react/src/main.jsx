@@ -8,3 +8,12 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+// Register Service Worker for PWA install + offline cache
+if ('serviceWorker' in navigator && !location.hostname.includes('localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/Sakhi-Sang/sw.js')
+      .then(() => console.log('SW registered'))
+      .catch(err => console.warn('SW failed:', err));
+  });
+}
