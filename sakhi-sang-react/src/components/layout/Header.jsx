@@ -17,8 +17,11 @@ export default function Header() {
     return unsub;
   }, [trueRole]);
 
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  // Full weekday name matches original (e.g. 'Wednesday, 20 May 2026')
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const roleLabel = { superAdmin: 'Super Admin', teamAdmin: 'Coordinator', serviceDevotee: 'Facilitator' }[userRole] || userRole;
+  // Show "Team – Role" when team is set and not superAdmin; superAdmin stays as-is
+  const rolePillText = (userTeam && userRole !== 'superAdmin') ? `${userTeam} – ${roleLabel}` : roleLabel;
   const pic = userDoc?.profilePic;
 
   return (
@@ -38,7 +41,7 @@ export default function Header() {
               <span className="header-brand-sub">Devotee Management System</span>
             </div>
           </div>
-          <span className="header-date">{today}</span>
+          <span className="header-date"><span className="header-date-icon">🗓</span>{today}</span>
         </div>
         <div className="header-right">
           <div className="header-user-chip">
@@ -47,7 +50,7 @@ export default function Header() {
             </div>
             <div className="header-user-info">
               <span className="header-user-name">{userName}</span>
-              <span className="header-user-role-pill">{roleLabel}</span>
+              <span className="header-user-role-pill">{rolePillText}</span>
             </div>
           </div>
           <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} title="Menu" aria-label="Open menu">
