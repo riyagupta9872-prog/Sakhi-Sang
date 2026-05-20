@@ -431,7 +431,7 @@ function DevoteeForm({ editId, onSave, onClose, fromAttendance = false }) {
 
 // ── Main DevoteesPage ──────────────────────────────────────────────────────────
 export default function DevoteesPage() {
-  const { filters } = useApp();
+  const { filters, dataVersion } = useApp();
   const { isTeamAdmin, isSuper } = useAuth();
   const [devotees, setDevotees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -447,7 +447,7 @@ export default function DevoteesPage() {
     const list = await DB.getDevotees({ search, team: filters.team, callingBy: filters.callingBy, status: statusFilter });
     setDevotees(list);
     setLoading(false);
-  }, [search, filters.team, filters.callingBy, statusFilter]);
+  }, [search, filters.team, filters.callingBy, statusFilter, dataVersion]);
 
   useEffect(() => { load(); }, [load]);
 

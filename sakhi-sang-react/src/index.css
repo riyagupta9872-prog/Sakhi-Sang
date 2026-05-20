@@ -59,12 +59,34 @@ input, select, textarea { font-family: inherit; }
 .loading-text { color: var(--text-muted); font-size: 1rem; }
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
-.app-header { display: flex; align-items: center; justify-content: space-between; height: var(--header-h); padding: 0 20px; background: linear-gradient(135deg, #f5c518, #fdd835); color: #1a1a1a; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(245,197,24,.35); flex-shrink: 0; }
-.header-left { display: flex; align-items: center; gap: 16px; }
-.header-logo { display: flex; align-items: center; gap: 8px; }
-.header-logo-icon { font-size: 1.4rem; }
-.header-brand { font-family: 'Cinzel', serif; font-size: 1.1rem; color: #1a1a1a; font-weight: 700; }
-.header-date { color: rgba(0,0,0,.55); font-size: .8rem; }
+.app-header { display: flex; align-items: center; justify-content: space-between; height: 76px; padding: 0 22px; background: linear-gradient(135deg, #f5c518, #fdd835); color: #1a1a1a; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 14px rgba(245,197,24,.40); flex-shrink: 0; }
+.header-left { display: flex; align-items: center; gap: 18px; }
+.header-logo { display: flex; align-items: center; gap: 12px; }
+.header-logo-img {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2.5px solid white;
+  box-shadow: 0 3px 10px rgba(0,0,0,.18);
+  flex-shrink: 0;
+  background: white;
+}
+.header-brand-block { display: flex; flex-direction: column; line-height: 1.1; }
+.header-brand {
+  font-family: 'Cinzel', serif;
+  font-size: 1.55rem;
+  color: #6b3a00;
+  font-weight: 700;
+  letter-spacing: .12em;
+  line-height: 1.05;
+}
+.header-brand-sub {
+  font-size: .78rem;
+  color: rgba(0,0,0,.55);
+  font-weight: 600;
+  margin-top: 3px;
+}
+.header-date { color: #1a1a1a; font-size: .92rem; font-weight: 700; background: rgba(255,255,255,.45); padding: 5px 13px; border-radius: 999px; }
 .header-right { display: flex; align-items: center; gap: 8px; }
 .header-user { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 10px; border-radius: var(--radius-lg); transition: background .15s; }
 .header-user:hover { background: rgba(0,0,0,.08); }
@@ -669,15 +691,16 @@ input, select, textarea { font-family: inherit; }
   text-align: center;
 }
 .auth-logo-circle {
-  width: 110px; height: 110px;
+  width: 120px; height: 120px;
   border-radius: 50%;
   margin: 8px auto 16px;
-  background: radial-gradient(circle at 30% 30%, #fde68a 0%, #f5c518 60%, #d4a900 100%);
+  background: white;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 20px rgba(245,197,24,.40), inset 0 -3px 8px rgba(0,0,0,.10);
-  border: 3px solid white;
+  box-shadow: 0 6px 20px rgba(245,197,24,.40);
+  border: 3px solid #f5c518;
+  overflow: hidden;
 }
-.auth-logo-inner { font-size: 3rem; line-height: 1; filter: drop-shadow(0 2px 3px rgba(0,0,0,.15)); }
+.auth-logo-img { width: 100%; height: 100%; object-fit: cover; }
 .auth-title-v2 {
   font-family: 'Cinzel', serif;
   font-size: 1.7rem; font-weight: 700;
@@ -886,6 +909,21 @@ input, select, textarea { font-family: inherit; }
 }
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 14px; }
 .header-user-display { display: flex; align-items: center; gap: 10px; padding-right: 6px; }
+.header-user-chip { display: flex; align-items: center; gap: 10px; padding-right: 6px; }
+.header-user-chip .avatar { width: 42px; height: 42px; background: #1a1a1a; color: #f5c518; font-size: .95rem; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+.header-user-chip .avatar-img { width: 42px; height: 42px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+.header-user-chip .header-user-name { color: #1a1a1a; font-weight: 700; font-size: .92rem; line-height: 1.2; }
+.header-user-role-pill {
+  align-self: flex-start;
+  display: inline-block;
+  margin-top: 2px;
+  padding: 2px 8px;
+  background: white;
+  color: #b8860b;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 700;
+}
 
 /* ── User mgmt Att Seva toggle ───────────────────────────────────────────── */
 .user-att-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: .76rem; color: var(--text); cursor: pointer; white-space: nowrap; }

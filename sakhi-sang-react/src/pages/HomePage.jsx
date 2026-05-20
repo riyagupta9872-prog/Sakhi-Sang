@@ -76,7 +76,7 @@ function shortRange(a, b) {
 
 // ── Dashboard KPIs ──────────────────────────────────────────────────────────
 function DashboardKPIs({ generation }) {
-  const { filters } = useApp();
+  const { filters, dataVersion } = useApp();
   const sessionId = filters.sessionId;
   const sessionDate = filters.sessionDate;
   const [data, setData] = useState(null);
@@ -136,7 +136,7 @@ function DashboardKPIs({ generation }) {
       });
     } catch (e) { console.error('Dashboard KPIs:', e); }
     finally { setLoading(false); }
-  }, [sessionId, sessionDate, filters.team, generation]);
+  }, [sessionId, sessionDate, filters.team, generation, dataVersion]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -161,7 +161,7 @@ function DashboardKPIs({ generation }) {
 
 // ── Team Performance — per-team grid with grouped Attendance header ───────
 function TeamPerformance({ generation }) {
-  const { filters } = useApp();
+  const { filters, dataVersion } = useApp();
   const sessionId = filters.sessionId;
   const sessionDate = filters.sessionDate;
   const [rows, setRows] = useState([]);
@@ -188,7 +188,7 @@ function TeamPerformance({ generation }) {
       finally { setLoading(false); }
     }
     load();
-  }, [sessionId, sessionDate, filters.team, generation]);
+  }, [sessionId, sessionDate, filters.team, generation, dataVersion]);
 
   // Grand totals
   const totals = rows.reduce((a, r) => ({

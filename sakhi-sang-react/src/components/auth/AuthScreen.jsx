@@ -52,7 +52,7 @@ export default function AuthScreen() {
     <div className="auth-screen-v2">
       <div className="auth-card-v2">
         <div className="auth-logo-circle">
-          <div className="auth-logo-inner">🪷</div>
+          <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="Sakhi Sang" className="auth-logo-img" />
         </div>
         <h1 className="auth-title-v2">SAKHI SANG</h1>
         <p className="auth-subtitle-v2">Devotee Management System</p>

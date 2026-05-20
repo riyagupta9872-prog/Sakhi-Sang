@@ -32,19 +32,22 @@ export default function Header() {
       <header className="app-header">
         <div className="header-left">
           <div className="header-logo">
-            <span className="header-logo-icon">🌸</span>
-            <span className="header-brand">Sakhi Sang</span>
+            <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="Sakhi Sang" className="header-logo-img" />
+            <div className="header-brand-block">
+              <span className="header-brand">SAKHI SANG</span>
+              <span className="header-brand-sub">Devotee Management System</span>
+            </div>
           </div>
           <span className="header-date">{today}</span>
         </div>
         <div className="header-right">
-          <div className="header-user-display">
+          <div className="header-user-chip">
             <div className="avatar-wrap">
               {pic ? <img src={pic} alt={userName} className="avatar-img" /> : <div className="avatar">{avatarInitials(userName)}</div>}
             </div>
             <div className="header-user-info">
               <span className="header-user-name">{userName}</span>
-              <span className="header-user-role">{roleLabel}{userTeam ? ` · ${userTeam}` : ''}</span>
+              <span className="header-user-role-pill">{roleLabel}</span>
             </div>
           </div>
           <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} title="Menu" aria-label="Open menu">

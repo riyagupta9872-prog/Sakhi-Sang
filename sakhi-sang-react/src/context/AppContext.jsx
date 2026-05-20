@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { toLocalDateStr, snapToSunday } from '../utils/helpers';
+import { onSnapshot, collection } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { bustCache } from '../firebase/db';
 
 const AppContext = createContext(null);
 
@@ -65,6 +68,21 @@ export function AppProvider({ children }) {
   const [sessionsCache, setSessionsCache] = useState([]);
   const [callingPersonsCache, setCallingPersonsCache] = useState([]);
 
+  // ── Live data version counter — increments whenever a watched collection
+  //    changes in Firestore. Pages depend on this in their useEffect deps so
+  //    reports refresh instantly when someone edits anything.
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    const cols = ['devotees', 'sessions', 'attendanceRecords', 'callingStatus', 'callingSubmissions'];
+    const unsubs = cols.map(col =>
+      onSnapshot(collection(db, col), () => {
+        bustCache();             // invalidate devotee cache so next read is fresh
+        setDataVersion(v => v + 1);
+      }, () => {})
+    );
+    return () => unsubs.forEach(u => u());
+  }, []);
+
   function setActiveTab(tab) {
     setActiveTabRaw(tab);
     // Set default view when switching to a tab that has views
@@ -93,6 +111,7 @@ export function AppProvider({ children }) {
     callingPersonsCache, setCallingPersonsCache,
     toast, showToast,
     attSevaOnly,
+    dataVersion,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
