@@ -12,6 +12,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [attSevaLogin, setAttSevaLogin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,6 +31,9 @@ export default function AuthScreen() {
     setError(''); setLoading(true);
     try {
       if (mode === 'login') {
+        // Store att-seva login intent before auth — picked up by AppContext after auth
+        if (attSevaLogin) sessionStorage.setItem('attSevaOnly', '1');
+        else sessionStorage.removeItem('attSevaOnly');
         await login(email, password);
       } else if (mode === 'signup') {
         if (!displayName.trim()) { setError('Please enter your name'); setLoading(false); return; }
@@ -45,70 +49,91 @@ export default function AuthScreen() {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <div className="auth-logo-icon">🌸</div>
-          <h1 className="auth-title">Sakhi Sang</h1>
-          <p className="auth-subtitle">Devotee Management System</p>
+    <div className="auth-screen-v2">
+      <div className="auth-card-v2">
+        <div className="auth-logo-circle">
+          <div className="auth-logo-inner">🪷</div>
         </div>
+        <h1 className="auth-title-v2">SAKHI SANG</h1>
+        <p className="auth-subtitle-v2">Devotee Management System</p>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <h2 className="auth-form-title">
-            {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Request Access' : 'Reset Password'}
-          </h2>
+        {mode !== 'forgot' && (
+          <div className="auth-tabs">
+            <button
+              className={`auth-tab${mode === 'login' ? ' active' : ''}`}
+              onClick={() => { setMode('login'); setError(''); }}
+            >Login</button>
+            <button
+              className={`auth-tab${mode === 'signup' ? ' active' : ''}`}
+              onClick={() => { setMode('signup'); setError(''); }}
+            >Sign Up</button>
+          </div>
+        )}
 
+        <form className="auth-form-v2" onSubmit={handleSubmit}>
           {mode === 'signup' && (
             <div className="form-group">
-              <label className="form-label">Your Name</label>
-              <input className="form-input" type="text" value={displayName}
+              <label className="form-label-v2">Your Name</label>
+              <input className="form-input-v2" type="text" value={displayName}
                 onChange={e => setDisplayName(e.target.value)} placeholder="Full name" required />
             </div>
           )}
 
           <div className="form-group">
-            <label className="form-label">Email</label>
-            <input className="form-input" type="email" value={email}
+            <label className="form-label-v2">Email</label>
+            <input className="form-input-v2" type="email" value={email}
               onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
               required autoComplete="email" />
           </div>
 
           {mode !== 'forgot' && (
             <div className="form-group">
-              <label className="form-label">Password</label>
-              <div className="pw-wrap">
-                <input className="form-input" type={showPw ? 'text' : 'password'}
+              <label className="form-label-v2">Password</label>
+              <div className="pw-wrap-v2">
+                <input className="form-input-v2" type={showPw ? 'text' : 'password'}
                   value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••" required
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-                <button type="button" className="pw-toggle" onClick={() => setShowPw(s => !s)}>
+                <button type="button" className="pw-toggle-v2" onClick={() => setShowPw(s => !s)}>
                   {showPw ? '🙈' : '👁'}
                 </button>
               </div>
             </div>
           )}
 
-          {error && <div className="auth-error">{error}</div>}
+          {mode === 'login' && (
+            <div className="auth-forgot-row">
+              <button type="button" className="auth-forgot-link" onClick={() => { setMode('forgot'); setError(''); }}>
+                Forgot password?
+              </button>
+            </div>
+          )}
 
-          <button className="btn-primary btn-full" type="submit" disabled={loading}>
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Request Access' : 'Send Reset Email'}
+          {mode === 'login' && (
+            <label className="auth-att-seva">
+              <input type="checkbox" checked={attSevaLogin} onChange={e => setAttSevaLogin(e.target.checked)} />
+              <span>
+                Login as Attendance Service Devotee
+                <span className="auth-att-seva-hint"> (only Attendance tab)</span>
+              </span>
+            </label>
+          )}
+
+          {error && <div className="auth-error-v2">{error}</div>}
+
+          <button className="auth-submit-btn" type="submit" disabled={loading}>
+            {loading ? 'Please wait…' :
+              mode === 'login' ? <>➜ Login — Hare Krishna!</> :
+              mode === 'signup' ? <>➜ Request Access</> :
+              <>➜ Send Reset Email</>}
           </button>
-        </form>
 
-        <div className="auth-links">
-          {mode === 'login' && <>
-            <button className="link-btn" onClick={() => { setMode('forgot'); setError(''); }}>Forgot password?</button>
-            <span className="auth-sep">·</span>
-            <button className="link-btn" onClick={() => { setMode('signup'); setError(''); }}>New? Request access</button>
-          </>}
-          {mode === 'signup' && <>
-            <span>Already have access?</span>
-            <button className="link-btn ml-2" onClick={() => { setMode('login'); setError(''); }}>Sign in</button>
-          </>}
-          {mode === 'forgot' && <>
-            <button className="link-btn" onClick={() => { setMode('login'); setError(''); }}>← Back to Sign In</button>
-          </>}
-        </div>
+          {mode === 'forgot' && (
+            <button type="button" className="auth-back-link" onClick={() => { setMode('login'); setError(''); }}>
+              ← Back to Sign In
+            </button>
+          )}
+        </form>
       </div>
     </div>
   );

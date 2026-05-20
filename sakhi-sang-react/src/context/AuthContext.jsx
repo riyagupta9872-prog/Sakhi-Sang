@@ -126,6 +126,10 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     if (pendingUnsub.current) { pendingUnsub.current(); pendingUnsub.current = null; }
+    // Clear session-only flags so next login starts fresh
+    sessionStorage.removeItem('attSevaOnly');
+    sessionStorage.removeItem('overrideRole');
+    sessionStorage.removeItem('birthdayShown');
     await signOut(auth);
   }
 

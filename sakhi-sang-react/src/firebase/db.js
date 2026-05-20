@@ -864,18 +864,26 @@ export const DB = {
   },
 
   async approveSignupRequest(requestId, uid, role, teamName, displayName) {
-    await setDoc(doc(db, 'users', uid), { role, teamName, displayName, isActive: true, createdAt: serverTimestamp() });
-    await updateDoc(doc(db, 'signupRequests', requestId), { status: 'approved', updatedAt: serverTimestamp() });
+    // 1. Create the user doc keyed by Firebase Auth UID (NEVER the request id)
+    await setDoc(doc(db, 'users', uid), {
+      role, teamName, displayName, isActive: true, createdAt: serverTimestamp(),
+    });
+    // 2. DELETE the signupRequest — avoids duplicate-id confusion + listing in
+    //    User Management when admin queries collections later
+    await deleteDoc(doc(db, 'signupRequests', requestId));
   },
 
   async rejectSignupRequest(requestId) {
-    await updateDoc(doc(db, 'signupRequests', requestId), { status: 'rejected', updatedAt: serverTimestamp() });
+    // Delete the request entirely. User can re-request next sign-in.
+    await deleteDoc(doc(db, 'signupRequests', requestId));
   },
 
   async createSignupRequest(uid, displayName, email) {
+    // Idempotent: docId === uid so a re-login by the same person updates the
+    // same doc instead of creating a duplicate (this was the vanilla-JS bug)
     await setDoc(doc(db, 'signupRequests', uid), {
       uid, displayName, email, status: 'pending', createdAt: serverTimestamp(),
-    });
+    }, { merge: true });
   },
 
   async updateCallingByName(oldName, newName) {

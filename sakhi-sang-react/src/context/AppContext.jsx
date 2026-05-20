@@ -47,8 +47,11 @@ const DEFAULT_VIEW = {
 };
 
 export function AppProvider({ children }) {
-  const [activeTab, setActiveTabRaw] = useState('dashboard');
-  const [activeView, setActiveViewRaw] = useState('');
+  // "Att-Seva-only" login mode set on the login screen — limits navigation to
+  // the Attendance tab only and lands directly on Live Attendance.
+  const attSevaOnly = typeof window !== 'undefined' && sessionStorage.getItem('attSevaOnly') === '1';
+  const [activeTab, setActiveTabRaw] = useState(attSevaOnly ? 'attendance' : 'dashboard');
+  const [activeView, setActiveViewRaw] = useState(attSevaOnly ? 'live' : '');
   const toastTimer = useRef(null);
   const [toast, setToast] = useState(null);
 
@@ -89,6 +92,7 @@ export function AppProvider({ children }) {
     sessionsCache, setSessionsCache,
     callingPersonsCache, setCallingPersonsCache,
     toast, showToast,
+    attSevaOnly,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

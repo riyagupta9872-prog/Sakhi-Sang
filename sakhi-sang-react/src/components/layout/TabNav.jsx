@@ -55,12 +55,13 @@ function TabDropdown({ tabId, views, userRole, isAttSevaDev, anchorRect, onSelec
 }
 
 export default function TabNav() {
-  const { activeTab, activeView, navTo, setActiveTab } = useApp();
+  const { activeTab, activeView, navTo, setActiveTab, attSevaOnly } = useApp();
   const { userRole, isAttSevaDev } = useAuth();
   const [openMenu, setOpenMenu] = useState(null);   // tabId
   const [anchorRect, setAnchorRect] = useState(null);
 
-  const visible = TABS.filter(t => t.roles.includes(userRole));
+  let visible = TABS.filter(t => t.roles.includes(userRole));
+  if (attSevaOnly) visible = visible.filter(t => t.id === 'attendance');
 
   function handleTabClick(tab, e) {
     const views = TAB_VIEWS[tab.id];
@@ -145,10 +146,11 @@ function Breadcrumb() {
 
 // ── Scrollable Bottom Nav (mobile only) ─────────────────────────────────────
 export function BottomNav() {
-  const { activeTab, setActiveTab } = useApp();
+  const { activeTab, setActiveTab, attSevaOnly } = useApp();
   const { userRole } = useAuth();
   const scrollRef = useRef(null);
-  const visible = TABS.filter(t => t.roles.includes(userRole));
+  let visible = TABS.filter(t => t.roles.includes(userRole));
+  if (attSevaOnly) visible = visible.filter(t => t.id === 'attendance');
 
   // Auto-scroll active button into view when tab changes
   useEffect(() => {
