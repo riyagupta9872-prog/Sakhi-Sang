@@ -965,6 +965,78 @@ export const DB = {
     } catch (err) { console.error('getTeamsReport:', err); return []; }
   },
 
+  // Per-team performance grid for dashboard
+  // Returns one row per team with attendance + activity totals
+  async getTeamPerformance(weekDate, sessionId, sessionDate) {
+    try {
+      const sat = weekDate;
+      const sun = sessionDate;
+      const sunMinus6 = sun ? shiftDate(sun, -6) : sat ? shiftDate(sat, -5) : null;
+      const startDate = sunMinus6;
+      const endDate = sun || sat;
+
+      const [csSnap, attSnap, targets, books, services, regs, donations] = await Promise.all([
+        sat ? getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', sat))) : Promise.resolve({ docs: [] }),
+        sessionId ? getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId))) : Promise.resolve({ docs: [] }),
+        this.getAttendanceTargets(),
+        startDate && endDate ? this.getBookDistributions({ startDate, endDate }) : Promise.resolve([]),
+        startDate && endDate ? this.getServices({ startDate, endDate }) : Promise.resolve([]),
+        startDate && endDate ? this.getRegistrations({ startDate, endDate }) : Promise.resolve([]),
+        startDate && endDate ? this.getDonations({ startDate, endDate }) : Promise.resolve([]),
+      ]);
+
+      const attSet = new Set(attSnap.docs.map(d => d.data().devotee_id));
+      const teams = {};
+      function ensure(t) {
+        const key = t || 'Unknown';
+        if (!teams[key]) teams[key] = {
+          team: key, called: 0, yes: 0, came: 0,
+          target: targets.teams?.[key] || targets.global || 0,
+          books: 0, services: 0, registrations: 0, donations: 0,
+        };
+        return teams[key];
+      }
+
+      // Calling status → called, yes, came per team
+      csSnap.docs.forEach(d => {
+        const dat = d.data();
+        const row = ensure(dat.team_name || dat.teamName);
+        row.called++;
+        if ((dat.coming_status || dat.comingStatus) === 'Yes') row.yes++;
+        if (attSet.has(dat.devotee_id || dat.devoteeId)) row.came++;
+      });
+
+      // Also attribute attendance to team if the devotee wasn't in the calling list
+      attSnap.docs.forEach(d => {
+        const dat = d.data();
+        const tname = dat.team_name || dat.teamName;
+        if (!tname) return;
+        const row = ensure(tname);
+        // If this devotee wasn't already counted via calling status, still count attendance
+        // (don't double-count: csSnap loop already added came for matching ids)
+      });
+
+      // Activities per team
+      books.forEach(b => { ensure(b.teamName || b.team_name).books += Number(b.quantity) || 0; });
+      services.forEach(s => { ensure(s.teamName || s.team_name).services += 1; });
+      regs.forEach(r => { ensure(r.teamName || r.team_name).registrations += Number(r.count) || 0; });
+      donations.forEach(d => { ensure(d.teamName || d.team_name).donations += Number(d.amount) || 0; });
+
+      // Compute percentage per team (came vs target; falls back to yes if no target)
+      const rows = Object.values(teams).map(r => ({
+        ...r,
+        percentage: r.target > 0 ? Math.round((r.came / r.target) * 100)
+                  : r.yes > 0 ? Math.round((r.came / r.yes) * 100)
+                  : 0,
+      }));
+      rows.sort((a, b) => (a.team || '').localeCompare(b.team || ''));
+      return rows;
+    } catch (err) {
+      console.error('getTeamPerformance:', err);
+      return [];
+    }
+  },
+
   // Full coordinator grid: per-team per-coordinator totals incl. activities
   async getCoordinatorPerformance(weekDate, sessionId, sessionDate) {
     try {

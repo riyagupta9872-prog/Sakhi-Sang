@@ -42,20 +42,36 @@ function KPI({ icon, iconBg, value, label }) {
   );
 }
 
-// ── Today's Snapshot Banner ────────────────────────────────────────────────
-function SnapshotBanner({ onRefresh }) {
+// ── Hare Krishna! banner with report date + activity range ─────────────────
+function SnapshotBanner({ sessionDate, sessionId, onRefresh }) {
+  // Activity window = (session date - 6) → today, or (session date) → (sat) if no session
+  const activityEnd = sessionDate || toLocalDateStr();
+  const activityStart = sessionDate ? shiftDate(sessionDate, -6) : shiftDate(activityEnd, -6);
   return (
     <div className="snapshot-banner">
       <div className="snapshot-banner-left">
         <div className="snapshot-icon">ॐ</div>
-        <div>
+        <div className="snapshot-body">
           <div className="snapshot-title">Hare Krishna!</div>
-          <div className="snapshot-subtitle">Today's snapshot</div>
+          <div className="snapshot-meta">
+            <span className="snapshot-meta-item">📋 Reports for <strong>{sessionDate ? formatDate(sessionDate) : '—'}</strong></span>
+            <span className="snapshot-meta-sep">·</span>
+            <span className="snapshot-meta-item">📅 Activities: <strong>{shortRange(activityStart, activityEnd)}</strong></span>
+          </div>
         </div>
       </div>
-      <button className="snapshot-refresh" onClick={onRefresh} title="Refresh">↻</button>
+      <button className="snapshot-refresh" onClick={onRefresh} title="Refresh data" aria-label="Refresh">↻</button>
     </div>
   );
+}
+
+function shortRange(a, b) {
+  if (!a || !b) return '—';
+  const da = new Date(a), db = new Date(b);
+  const sameMonth = da.getMonth() === db.getMonth() && da.getFullYear() === db.getFullYear();
+  const aShort = da.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const bShort = db.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return sameMonth ? `${da.getDate()}–${db.getDate()} ${da.toLocaleDateString('en-IN', { month: 'short' })}` : `${aShort} – ${bShort}`;
 }
 
 // ── Dashboard KPIs ──────────────────────────────────────────────────────────
@@ -133,8 +149,8 @@ function DashboardKPIs({ sessionId, sessionDate, generation }) {
   );
 }
 
-// ── Coordinator Performance — full 11-column grid ─────────────────────────
-function CoordinatorPerformance({ sessionId, sessionDate, generation }) {
+// ── Team Performance — per-team grid with grouped Attendance header ───────
+function TeamPerformance({ sessionId, sessionDate, generation }) {
   const { filters } = useApp();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -145,107 +161,90 @@ function CoordinatorPerformance({ sessionId, sessionDate, generation }) {
       setLoading(true);
       try {
         const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
-        const all = await DB.getCoordinatorPerformance(sat, sessionId, sessionDate);
+        const all = await DB.getTeamPerformance(sat, sessionId, sessionDate);
         const filtered = filters.team ? all.filter(r => r.team === filters.team) : all;
         setRows(filtered);
-      } catch (e) { console.error('CoordinatorPerformance:', e); }
+      } catch (e) { console.error('TeamPerformance:', e); }
       finally { setLoading(false); }
     }
     load();
   }, [sessionId, sessionDate, filters.team, generation]);
 
-  // Group rows by team for visual separation
-  const byTeam = {};
-  rows.forEach(r => { (byTeam[r.team] = byTeam[r.team] || []).push(r); });
-
   // Grand totals
   const totals = rows.reduce((a, r) => ({
-    called: a.called + r.called, yes: a.yes + r.yes, attended: a.attended + r.attended,
+    called: a.called + r.called, yes: a.yes + r.yes, came: a.came + r.came,
+    target: a.target + r.target,
     books: a.books + r.books, services: a.services + r.services,
     registrations: a.registrations + r.registrations, donations: a.donations + r.donations,
-  }), { called: 0, yes: 0, attended: 0, books: 0, services: 0, registrations: 0, donations: 0 });
+  }), { called: 0, yes: 0, came: 0, target: 0, books: 0, services: 0, registrations: 0, donations: 0 });
+  const grandPct = totals.target > 0 ? Math.round((totals.came / totals.target) * 100) : 0;
+
+  function pctClass(p, hasTarget) {
+    if (!hasTarget) return 'pct-na';
+    if (p >= 60) return 'pct-good';
+    if (p >= 30) return 'pct-ok';
+    return 'pct-low';
+  }
 
   return (
-    <div className="coordinator-performance">
-      <h3 className="cp-title">📋 Coordinator Performance</h3>
+    <div className="team-performance">
+      <h3 className="tp-title">📋 Coordinator Performance</h3>
       {loading ? <div className="loading-spinner" /> :
         rows.length === 0
-          ? <div className="empty-state">No submitted calling data for this session yet</div>
-          : <div className="table-scroll">
-              <table className="simple-table coordinator-grid">
+          ? <div className="empty-state">No data for this session yet</div>
+          : <div className="tp-table-wrap">
+              <table className="tp-table">
                 <thead>
-                  <tr>
-                    <th>Team</th>
-                    <th>Coordinator</th>
-                    <th title="Devotees called">Called</th>
-                    <th title="Said yes">Confirmed</th>
-                    <th title="Actually attended">Attended</th>
+                  <tr className="tp-group-row">
+                    <th rowSpan={2} className="tp-team-col">Team</th>
+                    <th colSpan={5} className="tp-group-attendance">Attendance</th>
+                    <th rowSpan={2}>Books</th>
+                    <th rowSpan={2}>Service</th>
+                    <th rowSpan={2}>Reg.</th>
+                    <th rowSpan={2}>Donation ₹</th>
+                  </tr>
+                  <tr className="tp-sub-row">
+                    <th>Called</th>
+                    <th>Yes</th>
+                    <th>Came</th>
                     <th>Target</th>
                     <th>%</th>
-                    <th title="Books distributed">📚</th>
-                    <th title="Service entries">🤲</th>
-                    <th title="Registrations">📋</th>
-                    <th title="Donations ₹">💰</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(byTeam).map(([team, list]) => {
-                    const tt = list.reduce((a, r) => ({
-                      called: a.called + r.called, yes: a.yes + r.yes, attended: a.attended + r.attended,
-                      books: a.books + r.books, services: a.services + r.services,
-                      registrations: a.registrations + r.registrations, donations: a.donations + r.donations,
-                    }), { called: 0, yes: 0, attended: 0, books: 0, services: 0, registrations: 0, donations: 0 });
-                    return (
-                      <React.Fragment key={team}>
-                        {list.map((r, i) => (
-                          <tr key={`${team}-${i}`}>
-                            {i === 0
-                              ? <td rowSpan={list.length + 1} className="team-cell"><strong>{team}</strong></td>
-                              : null}
-                            <td>{r.caller}</td>
-                            <td>{r.called}</td>
-                            <td>{r.yes}</td>
-                            <td><strong>{r.attended}</strong></td>
-                            <td>{r.target || '—'}</td>
-                            <td>
-                              {r.target > 0
-                                ? <span className={`pct-badge pct-${r.percentage >= 80 ? 'good' : r.percentage >= 50 ? 'ok' : 'low'}`}>{r.percentage}%</span>
-                                : '—'}
-                            </td>
-                            <td>{r.books || '—'}</td>
-                            <td>{r.services || '—'}</td>
-                            <td>{r.registrations || '—'}</td>
-                            <td>{r.donations ? formatINR(r.donations) : '—'}</td>
-                          </tr>
-                        ))}
-                        <tr className="team-subtotal-row">
-                          <td><em>Total</em></td>
-                          <td>{tt.called}</td>
-                          <td>{tt.yes}</td>
-                          <td><strong>{tt.attended}</strong></td>
-                          <td></td>
-                          <td></td>
-                          <td>{tt.books || '—'}</td>
-                          <td>{tt.services || '—'}</td>
-                          <td>{tt.registrations || '—'}</td>
-                          <td>{tt.donations ? formatINR(tt.donations) : '—'}</td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })}
-                  <tr className="grand-total-row">
-                    <td colSpan={2}><strong>Grand Total</strong></td>
+                  {rows.map((r, i) => (
+                    <tr key={i}>
+                      <td className="tp-team-col"><strong>{r.team}</strong></td>
+                      <td>{r.called}</td>
+                      <td>{r.yes}</td>
+                      <td><strong>{r.came}</strong></td>
+                      <td>{r.target || '—'}</td>
+                      <td className={`tp-pct ${pctClass(r.percentage, r.target > 0 || r.yes > 0)}`}>
+                        {(r.target > 0 || r.yes > 0) ? `${r.percentage}%` : '—'}
+                      </td>
+                      <td>{r.books || '—'}</td>
+                      <td>{r.services || '—'}</td>
+                      <td>{r.registrations || '—'}</td>
+                      <td>{r.donations ? formatINR(r.donations) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="tp-grand-total">
+                    <td className="tp-team-col"><strong>Grand Total</strong></td>
                     <td><strong>{totals.called}</strong></td>
                     <td><strong>{totals.yes}</strong></td>
-                    <td><strong>{totals.attended}</strong></td>
-                    <td></td>
-                    <td></td>
+                    <td><strong>{totals.came}</strong></td>
+                    <td><strong>{totals.target || '—'}</strong></td>
+                    <td className={`tp-pct ${pctClass(grandPct, totals.target > 0)}`}>
+                      {totals.target > 0 ? `${grandPct}%` : '—'}
+                    </td>
                     <td><strong>{totals.books || '—'}</strong></td>
                     <td><strong>{totals.services || '—'}</strong></td>
                     <td><strong>{totals.registrations || '—'}</strong></td>
                     <td><strong>{totals.donations ? formatINR(totals.donations) : '—'}</strong></td>
                   </tr>
-                </tbody>
+                </tfoot>
               </table>
             </div>
       }
@@ -361,14 +360,14 @@ export default function HomePage() {
     <div className="tab-page">
       <BirthdayPopup list={birthdays} onClose={() => setShowBirthdays(false)} />
 
-      {/* Snapshot banner — matches original "Hare Krishna! Today's snapshot" */}
-      <SnapshotBanner onRefresh={refreshAll} />
+      {/* Hare Krishna banner — Reports for [date] · Activities: [range] */}
+      <SnapshotBanner sessionDate={sessionDate} sessionId={sessionId} onRefresh={refreshAll} />
 
       {/* KPI tiles */}
       {sessionId && <DashboardKPIs sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
 
-      {/* Coordinator Performance */}
-      {sessionId && <CoordinatorPerformance sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
+      {/* Team Performance grid (was 'Coordinator Performance' label) */}
+      {sessionId && <TeamPerformance sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
 
       {/* Greeting + session config (compact, below content) */}
       <div className="home-greeting compact">
