@@ -12,11 +12,17 @@ import { ProfileHistoryModal, CallingHistoryModal, TeamChangeHistoryModal, Calli
 import ExcelImport from '../components/common/ExcelImport';
 import * as XLSX from 'xlsx';
 
+// Short label for the 5 devotee statuses (matches original 'ETS' style)
+const STATUS_SHORT = {
+  'Expected to be Serious': 'ETS',
+  'Serious': 'Serious',
+  'Most Serious': 'MS',
+  'New Devotee': 'New',
+  'Inactive': 'Inactive',
+};
+
 // ── DevoteeItem card ───────────────────────────────────────────────────────────
 function DevoteeItem({ d, onOpen }) {
-  // "Active" if not flagged inactive (soft-delete sets isActive=false; we don't show those)
-  // "INACTIVE" if inactivityFlag is true (no attendance in last 3 sessions)
-  const isInactive = !!d.inactivity_flag;
   return (
     <div className="devotee-item" onClick={() => onOpen(d.id)}>
       <div className="devotee-avatar">{avatarInitials(d.name)}</div>
@@ -29,17 +35,19 @@ function DevoteeItem({ d, onOpen }) {
           {d.mobile && <span className="devotee-mobile">{d.mobile}</span>}
         </div>
         <div className="devotee-meta">
-          <span className={`badge ${isInactive ? 'badge-inactive-soft' : 'badge-active-soft'}`}>
-            {isInactive ? 'INACTIVE' : 'Active'}
-          </span>
-          {d.team_name && <span className="badge badge-team">{d.team_name}</span>}
-          {d.devotee_status && <span className={`badge ${statusBadge(d.devotee_status)}`}>{d.devotee_status}</span>}
-          {d.reference_by && (
-            <span className="devotee-ref-chip" title={`Referred by ${d.reference_by}`}>
-              <span className="devotee-ref-icon">＋</span>{d.reference_by}
+          {d.devotee_status && (
+            <span className={`badge ${statusBadge(d.devotee_status)}`} title={d.devotee_status}>
+              {STATUS_SHORT[d.devotee_status] || d.devotee_status}
             </span>
           )}
+          {d.team_name && <span className="badge badge-team">{d.team_name}</span>}
         </div>
+        {d.reference_by && (
+          <div className="devotee-ref-line">
+            <span className="devotee-ref-icon">＋</span>
+            <span>{d.reference_by}</span>
+          </div>
+        )}
       </div>
       <div className="devotee-actions">
         {d.mobile && <a href={`tel:${d.mobile}`} className="btn-icon icon-call" onClick={e => e.stopPropagation()} title="Call">📞</a>}
@@ -261,8 +269,9 @@ function DevoteeForm({ editId, onSave, onClose, fromAttendance = false }) {
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); }
 
   async function handleSubmit() {
-    if (!form.name.trim()) { setError('Name is required'); return; }
-    if (form.mobile && !/^\d{10}$/.test(form.mobile)) { setError('Mobile must be 10 digits'); return; }
+    if (!form.name.trim()) { setError('Name is required'); setTab('identity'); return; }
+    if (form.mobile && !/^\d{10}$/.test(form.mobile)) { setError('Mobile must be exactly 10 digits'); setTab('identity'); return; }
+    if (!form.reference_by?.trim()) { setError('Reference Person is required'); setTab('team'); return; }
     setLoading(true); setError('');
     try {
       const payload = { ...form, tilak: form.tilak ? 1 : 0, kanthi: form.kanthi ? 1 : 0, gopi_dress: form.gopi_dress ? 1 : 0 };
@@ -334,8 +343,8 @@ function DevoteeForm({ editId, onSave, onClose, fromAttendance = false }) {
             </select>
           </div>
           <div className="form-group full">
-            <label className="form-label">Reference Person</label>
-            <DevoteePicker value={form.reference_by} onChange={v => { set('reference_by', v.name); set('reference_id', v.id); }} placeholder="Search devotee…" />
+            <label className="form-label">Reference Person <span style={{ color: 'var(--color-danger)' }}>*</span></label>
+            <DevoteePicker value={form.reference_by} onChange={v => { set('reference_by', v.name); set('reference_id', v.id); }} placeholder="Search who referred them…" />
           </div>
           <div className="form-group full">
             <label className="form-label">Calling By (Coordinator)</label>
@@ -359,40 +368,63 @@ function DevoteeForm({ editId, onSave, onClose, fromAttendance = false }) {
 
       {tab === 'sadhana' && (
         <div className="form-grid">
-          <div className="form-group"><label className="form-label">Chanting Rounds/day</label><input className="form-input" type="number" min={0} value={form.chanting_rounds} onChange={e => set('chanting_rounds', e.target.value)} /></div>
           <div className="form-group">
-            <label className="form-label">Attire</label>
-            <div className="checkbox-row">
-              <label><input type="checkbox" checked={!!form.tilak} onChange={e => set('tilak', e.target.checked)} /> Tilak</label>
-              <label><input type="checkbox" checked={!!form.kanthi} onChange={e => set('kanthi', e.target.checked)} /> Kanthi</label>
-              <label><input type="checkbox" checked={!!form.gopi_dress} onChange={e => set('gopi_dress', e.target.checked)} /> Gopi Dress</label>
-            </div>
+            <label className="form-label">Chanting Rounds / day</label>
+            <input className="form-input" type="number" min={0} max={64} value={form.chanting_rounds} onChange={e => set('chanting_rounds', e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Reads Books</label>
+            <label className="form-label">Sessions Before App</label>
+            <input className="form-input" type="number" min={0} value={form.prior_sessions} onChange={e => set('prior_sessions', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Reading</label>
             <select className="form-select" value={form.reads_books} onChange={e => set('reads_books', e.target.value)}>
               <option value="">—</option>
-              <option>Regularly</option><option>Sometimes</option><option>Rarely</option><option>No</option>
+              <option>None</option><option>Occasionally</option><option>Regular</option><option>Daily</option>
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Hears Katha</label>
+            <label className="form-label">Hearing</label>
             <select className="form-select" value={form.hears_katha} onChange={e => set('hears_katha', e.target.value)}>
               <option value="">—</option>
-              <option>Regularly</option><option>Sometimes</option><option>Rarely</option><option>No</option>
+              <option>None</option><option>Occasionally</option><option>Regular</option><option>Daily</option>
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Plays Instrument</label>
+            <label className="form-label">Tilak</label>
+            <select className="form-select" value={form.tilak ? '1' : '0'} onChange={e => set('tilak', e.target.value === '1')}>
+              <option value="0">No</option><option value="1">Yes</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Kanthi</label>
+            <select className="form-select" value={form.kanthi ? '1' : '0'} onChange={e => set('kanthi', e.target.value === '1')}>
+              <option value="0">No</option><option value="1">Yes</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Gopi Dress</label>
+            <select className="form-select" value={form.gopi_dress ? '1' : '0'} onChange={e => set('gopi_dress', e.target.value === '1')}>
+              <option value="0">No</option><option value="1">Yes</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Plays an Instrument?</label>
             <select className="form-select" value={form.plays_instrument} onChange={e => set('plays_instrument', e.target.value)}>
-              <option>No</option><option>Yes</option>
+              <option value="">—</option><option>Yes</option><option>No</option>
             </select>
           </div>
           {form.plays_instrument === 'Yes' && (
-            <div className="form-group"><label className="form-label">Instrument Name</label><input className="form-input" value={form.instrument_name} onChange={e => set('instrument_name', e.target.value)} /></div>
+            <div className="form-group">
+              <label className="form-label">Which Instrument?</label>
+              <select className="form-select" value={form.instrument_name} onChange={e => set('instrument_name', e.target.value)}>
+                <option value="">—</option>
+                <option>Kartal</option><option>Whomper</option><option>Mridanga</option><option>Harmonium</option><option>Drum</option>
+              </select>
+            </div>
           )}
           <div className="form-group">
-            <label className="form-label">Wants Kirtan Class</label>
+            <label className="form-label">Wants Kirtan Class?</label>
             <select className="form-select" value={form.wants_kirtan} onChange={e => set('wants_kirtan', e.target.value)}>
               <option value="">—</option><option>Yes</option><option>No</option>
             </select>
@@ -405,10 +437,12 @@ function DevoteeForm({ editId, onSave, onClose, fromAttendance = false }) {
           <div className="form-group"><label className="form-label">Family Members</label><input className="form-input" type="number" min={0} value={form.family_members} onChange={e => set('family_members', e.target.value)} /></div>
           <div className="form-group"><label className="form-label">Attending Class</label><input className="form-input" type="number" min={0} value={form.family_participants} onChange={e => set('family_participants', e.target.value)} /></div>
           <div className="form-group">
-            <label className="form-label">Family Attitude</label>
+            <label className="form-label">Favorable to Devotion</label>
             <select className="form-select" value={form.family_favourable} onChange={e => set('family_favourable', e.target.value)}>
               <option value="">—</option>
-              <option>Very Favourable</option><option>Favourable</option><option>Neutral</option><option>Unfavourable</option>
+              <option value="Yes">Yes – Fully supportive</option>
+              <option value="Partial">Partial – Some support</option>
+              <option value="No">No – Not supportive</option>
             </select>
           </div>
           <div className="form-group full"><label className="form-label">Hobbies</label><textarea className="form-textarea" rows={2} value={form.hobbies} onChange={e => set('hobbies', e.target.value)} /></div>
@@ -431,12 +465,19 @@ function DevoteeForm({ editId, onSave, onClose, fromAttendance = false }) {
 
 // ── Main DevoteesPage ──────────────────────────────────────────────────────────
 export default function DevoteesPage() {
-  const { filters, dataVersion } = useApp();
+  const { filters, dataVersion, showToast } = useApp();
   const { isTeamAdmin, isSuper } = useAuth();
   const [devotees, setDevotees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Debounce search input by 300ms so we don't hit DB on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [selectedId, setSelectedId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [showImport, setShowImport] = useState(false);
@@ -444,10 +485,10 @@ export default function DevoteesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const list = await DB.getDevotees({ search, team: filters.team, callingBy: filters.callingBy, status: statusFilter });
+    const list = await DB.getDevotees({ search: debouncedSearch, team: filters.team, callingBy: filters.callingBy, status: statusFilter });
     setDevotees(list);
     setLoading(false);
-  }, [search, filters.team, filters.callingBy, statusFilter, dataVersion]);
+  }, [debouncedSearch, filters.team, filters.callingBy, statusFilter, dataVersion]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -456,18 +497,103 @@ export default function DevoteesPage() {
 
   async function exportAllToExcel() {
     const all = await DB.getDevotees({});
-    const rows = [['Name','Mobile','Mobile Alt','Email','DOB','Address','Team','Status','Reference','Calling By','Facilitator','Education','Profession','Rounds','Tilak','Kanthi','Gopi','Family Members','Joining Date','Lifetime AT','Remarks']];
-    all.forEach(d => rows.push([
-      d.name||'', d.mobile||'', d.mobile_alt||'', d.email||'', d.dob||'', d.address||'',
-      d.team_name||'', d.devotee_status||'', d.reference_by||'', d.calling_by||'',
-      d.facilitator||'', d.education||'', d.profession||'', d.chanting_rounds||0,
-      d.tilak?'Yes':'No', d.kanthi?'Yes':'No', d.gopi_dress?'Yes':'No',
-      d.family_members||'', d.joining_date||'', d.lifetime_attendance||0, d.remarks||'',
-    ]));
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    if (all.length === 0) { showToast?.('No devotees to export', 'warning'); return; }
+
+    // Full column set with grouped headers (Identity | Team | Professional | Sadhana | Family)
+    const groupHeaders = [
+      '#',
+      'Identity', '', '', '', '', '',
+      'Team Management', '', '', '', '', '',
+      'Professional', '',
+      'Sadhana & Practices', '', '', '', '', '', '', '', '', '',
+      'Social & Family', '', '', '',
+    ];
+    const colHeaders = [
+      'Sr.No',
+      'Full Name','Date of Birth','Mobile','Mobile Alt','Address','Email',
+      'Team','Status','Joining Date','Reference By','Facilitator','Calling By',
+      'Education','Profession',
+      'Daily Chanting Rounds','Sessions Before App','Reading','Hearing','Tilak','Kanthi','Gopi Dress','Plays Instrument','Instrument Name','Wants Kirtan',
+      'Total Family Members','Family Members in Class','Family Favorable','Hobbies','Remarks',
+    ];
+
+    function rowFor(d, i) {
+      return [
+        i + 1,
+        d.name||'', d.dob||'', d.mobile||'', d.mobile_alt||'', d.address||'', d.email||'',
+        d.team_name||'', d.devotee_status||'', d.joining_date||'', d.reference_by||'', d.facilitator||'', d.calling_by||'',
+        d.education||'', d.profession||'',
+        d.chanting_rounds||0, d.prior_sessions||0, d.reads_books||'', d.hears_katha||'',
+        d.tilak?'Yes':'No', d.kanthi?'Yes':'No', d.gopi_dress?'Yes':'No',
+        d.plays_instrument||'', d.instrument_name||'', d.wants_kirtan||'',
+        d.family_members ?? '', d.family_participants ?? '', d.family_favourable||'', d.hobbies||'', d.remarks||'',
+      ];
+    }
+
+    function makeSheet(devs) {
+      const rows = [groupHeaders, colHeaders, ...devs.map(rowFor)];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      // Set reasonable column widths
+      ws['!cols'] = colHeaders.map((_, i) => ({ wch: i === 0 ? 5 : 16 }));
+      // Freeze the top 2 header rows + the Sr.No column
+      ws['!freeze'] = { xSplit: 1, ySplit: 2 };
+      // Merge the grouped header cells
+      ws['!merges'] = [
+        { s: { r: 0, c: 1 },  e: { r: 0, c: 6 } },   // Identity
+        { s: { r: 0, c: 7 },  e: { r: 0, c: 12 } },  // Team Management
+        { s: { r: 0, c: 13 }, e: { r: 0, c: 14 } },  // Professional
+        { s: { r: 0, c: 15 }, e: { r: 0, c: 24 } },  // Sadhana
+        { s: { r: 0, c: 25 }, e: { r: 0, c: 29 } },  // Family
+      ];
+      return ws;
+    }
+
+    function flatSheet(devs) {
+      // Re-Import-friendly flat sheet — single header row, no merges
+      const rows = [colHeaders.slice(1), ...devs.map(d => rowFor(d, 0).slice(1))];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = colHeaders.slice(1).map(() => ({ wch: 16 }));
+      return ws;
+    }
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Devotees');
-    XLSX.writeFile(wb, `Sakhi_Sang_Devotees_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+    // 1) "All Teams" sheet (everyone, grouped headers)
+    XLSX.utils.book_append_sheet(wb, makeSheet(all), 'All Teams');
+
+    // 2) Per-team sheets — one per team that has devotees
+    const byTeam = {};
+    all.forEach(d => {
+      const t = d.team_name || 'Other';
+      (byTeam[t] = byTeam[t] || []).push(d);
+    });
+    Object.entries(byTeam).sort(([a],[b]) => a.localeCompare(b)).forEach(([team, devs]) => {
+      const sheetName = `Team_${team}`.slice(0, 31); // Excel 31-char limit
+      XLSX.utils.book_append_sheet(wb, makeSheet(devs), sheetName);
+    });
+
+    // 3) "Re-Import (Flat)" sheet — for round-tripping back into Import Excel
+    XLSX.utils.book_append_sheet(wb, flatSheet(all), 'Re-Import (Flat)');
+
+    // 4) "Overall" stats sheet
+    const overall = [
+      ['Sakhi Sang — Devotee Database Export'],
+      ['Exported on', new Date().toLocaleString('en-IN')],
+      ['Total active devotees', all.length],
+      [],
+      ['Per-team count'],
+      ...Object.entries(byTeam).sort(([a],[b]) => a.localeCompare(b)).map(([t, list]) => [t, list.length]),
+      [],
+      ['Per-status count'],
+      ...['Most Serious','Serious','Expected to be Serious','New Devotee','Inactive'].map(s =>
+        [s, all.filter(d => d.devotee_status === s).length]
+      ),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(overall), 'Overall');
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    XLSX.writeFile(wb, `Sakhi-Sang-Devotees-${stamp}.xlsx`);
+    showToast?.(`Exported ${all.length} devotees across ${Object.keys(byTeam).length} teams`, 'success');
   }
 
   return (
