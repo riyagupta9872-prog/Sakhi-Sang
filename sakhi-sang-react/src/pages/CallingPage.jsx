@@ -649,33 +649,28 @@ function NotInterestedPanel() {
   );
 }
 
-// ── Main CallingPage — driven by activeView from context ────────────────────
+// ── Main CallingPage — driven by activeView + filters from context ─────────
 export default function CallingPage() {
-  const { activeView, setActiveViewRaw, filters } = useApp();
+  const { activeView, filters } = useApp();
   const [cfg, setCfg] = useState(null);
-  const [weekDate, setWeekDate] = useState('');
-  const [locked, setLocked] = useState(true);
 
   useEffect(() => {
-    DB.getCallingWeekConfig().then(c => {
-      if (!c) return;
-      setCfg(c);
-      const wd = c.callingDate || c.calling_date || '';
-      setWeekDate(wd);
-      const today = toLocalDateStr();
-      setLocked(today !== wd && today > wd);
-    });
+    DB.getCallingWeekConfig().then(c => setCfg(c || null)).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (filters.sessionDate && cfg) {
-      const wd = shiftDate(filters.sessionDate, -1);
-      setWeekDate(wd);
-      setLocked(toLocalDateStr() !== wd);
-    }
-  }, [filters.sessionDate, cfg]);
+  // Derive weekDate (Saturday) reactively from filter session OR config OR today
+  const filterSessionDate = filters.sessionDate;
+  const configCallingDate = cfg?.callingDate || cfg?.calling_date || '';
+  const configSessionDate = cfg?.sessionDate || cfg?.session_date || '';
 
-  // Default to 'calls' if no view set
+  // Priority: filter session → derive calling-date; otherwise use config; otherwise today
+  const weekDate = filterSessionDate
+    ? shiftDate(filterSessionDate, -1)
+    : configCallingDate || shiftDate(toLocalDateStr(), -1);
+  const sessionDateForCalls = filterSessionDate || configSessionDate;
+  const today = toLocalDateStr();
+  const locked = !!weekDate && today !== weekDate && today > weekDate;
+
   const view = activeView || 'calls';
 
   return (
@@ -684,12 +679,12 @@ export default function CallingPage() {
         <div className="session-info-bar">
           <span className="session-label">
             Calling: <strong>{formatDate(weekDate)}</strong>
-            {cfg?.sessionDate && <> · Session: <strong>{formatDate(cfg.sessionDate)}</strong></>}
+            {sessionDateForCalls && <> · Session: <strong>{formatDate(sessionDateForCalls)}</strong></>}
             {locked && <span className="locked-badge">🔒 Locked</span>}
           </span>
         </div>
       )}
-      {view === 'calls'         && <CallsPanel weekDate={weekDate} locked={locked} cfg={cfg} sessionDate={cfg?.sessionDate || cfg?.session_date} />}
+      {view === 'calls'         && <CallsPanel weekDate={weekDate} locked={locked} cfg={cfg} sessionDate={sessionDateForCalls} />}
       {view === 'team-calling'  && <TeamCallingPanel weekDate={weekDate} />}
       {view === 'weekly'        && <WeeklyReport weekDate={weekDate} />}
       {view === 'submission'    && <SubmissionReport />}

@@ -385,17 +385,20 @@ function AccuracyPanel({ sessionId, sessionDate }) {
 export default function AttendancePage() {
   const { filters, activeView } = useApp();
   const { isAttSevaDev } = useAuth();
-  const [sessionId, setSessionId] = useState('');
-  const [sessionDate, setSessionDate] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [fallback, setFallback] = useState(null);
 
+  // If master filter has no session yet (first load), resolve latest as fallback.
   useEffect(() => {
-    DB.getTodaySession().then(s => { setSessionId(s.id); setSessionDate(s.session_date); setLoading(false); });
-  }, []);
-  useEffect(() => {
-    if (filters.sessionId) setSessionId(filters.sessionId);
-    if (filters.sessionDate) setSessionDate(filters.sessionDate);
-  }, [filters.sessionId, filters.sessionDate]);
+    if (filters.sessionId) { setFallback(null); return; }
+    let alive = true;
+    DB.getTodaySession().then(s => { if (alive) setFallback(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [filters.sessionId]);
+
+  // Single source of truth: prefer filter, fall back to latest
+  const sessionId = filters.sessionId || fallback?.id || '';
+  const sessionDate = filters.sessionDate || fallback?.session_date || '';
+  const loading = !sessionId;
 
   const view = activeView || (isAttSevaDev ? 'live' : 'sheet');
 

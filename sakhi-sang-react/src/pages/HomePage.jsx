@@ -75,20 +75,30 @@ function shortRange(a, b) {
 }
 
 // ── Dashboard KPIs ──────────────────────────────────────────────────────────
-function DashboardKPIs({ sessionId, sessionDate, generation }) {
+function DashboardKPIs({ generation }) {
   const { filters } = useApp();
+  const sessionId = filters.sessionId;
+  const sessionDate = filters.sessionDate;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!sessionId) { setData(null); return; }
+    // Fall back to latest session if filter is empty (first-load case)
+    let sid = sessionId, sdate = sessionDate;
+    if (!sid) {
+      try {
+        const s = await DB.getTodaySession();
+        sid = s.id; sdate = s.session_date;
+      } catch { return; }
+    }
+    if (!sid) { setData(null); return; }
     setLoading(true);
     try {
-      const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
+      const sat = sdate ? shiftDate(sdate, -1) : toLocalDateStr();
       const sun = shiftDate(sat, -6);
 
       const [att, csSnap, books, services, regs, donations] = await Promise.all([
-        DB.getSessionAttendance(sessionId),
+        DB.getSessionAttendance(sid),
         DB.getCallingReport(sat),
         DB.getBookDistributions({ startDate: sun, endDate: sat }),
         DB.getServices({ startDate: sun, endDate: sat }),
@@ -150,18 +160,28 @@ function DashboardKPIs({ sessionId, sessionDate, generation }) {
 }
 
 // ── Team Performance — per-team grid with grouped Attendance header ───────
-function TeamPerformance({ sessionId, sessionDate, generation }) {
+function TeamPerformance({ generation }) {
   const { filters } = useApp();
+  const sessionId = filters.sessionId;
+  const sessionDate = filters.sessionDate;
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
-      if (!sessionId) return;
+      // Fall back to latest session if filter is empty
+      let sid = sessionId, sdate = sessionDate;
+      if (!sid) {
+        try {
+          const s = await DB.getTodaySession();
+          sid = s.id; sdate = s.session_date;
+        } catch { return; }
+      }
+      if (!sid) return;
       setLoading(true);
       try {
-        const sat = sessionDate ? shiftDate(sessionDate, -1) : toLocalDateStr();
-        const all = await DB.getTeamPerformance(sat, sessionId, sessionDate);
+        const sat = sdate ? shiftDate(sdate, -1) : toLocalDateStr();
+        const all = await DB.getTeamPerformance(sat, sid, sdate);
         const filtered = filters.team ? all.filter(r => r.team === filters.team) : all;
         setRows(filtered);
       } catch (e) { console.error('TeamPerformance:', e); }
@@ -313,46 +333,27 @@ export default function HomePage() {
   const { userName, isSuper } = useAuth();
   const { filters } = useApp();
   const [showSessionConfig, setShowSessionConfig] = useState(false);
-  const [sessionId, setSessionId] = useState('');
-  const [sessionDate, setSessionDate] = useState('');
   const [cfg, setCfg] = useState(null);
   const [birthdays, setBirthdays] = useState([]);
   const [showBirthdays, setShowBirthdays] = useState(false);
   const [generation, setGeneration] = useState(0);
 
+  // Children read filters.sessionId / filters.sessionDate directly via useApp().
+  // We only fetch config + birthdays here. No local session state, no sync effect.
   useEffect(() => {
-    async function init() {
-      const [s, c, bd] = await Promise.all([
-        DB.getTodaySession(),
-        DB.getCallingWeekConfig(),
-        DB.getCareBirthdays(),
-      ]);
-      setSessionId(s.id);
-      setSessionDate(s.session_date);
-      setCfg(c);
-      // Only auto-show birthday popup once per day
+    DB.getCallingWeekConfig().then(setCfg).catch(() => {});
+    DB.getCareBirthdays().then(bd => {
+      setBirthdays(bd);
       const lastShown = sessionStorage.getItem('birthdayShown');
       const today = toLocalDateStr();
       if (bd.length && lastShown !== today) {
-        setBirthdays(bd);
         setShowBirthdays(true);
         sessionStorage.setItem('birthdayShown', today);
-      } else {
-        setBirthdays(bd);
       }
-    }
-    init();
+    }).catch(() => {});
   }, []);
 
-  // Sync with master filter
-  useEffect(() => {
-    if (filters.sessionId) setSessionId(filters.sessionId);
-    if (filters.sessionDate) setSessionDate(filters.sessionDate);
-  }, [filters.sessionId, filters.sessionDate]);
-
-  function refreshAll() {
-    setGeneration(g => g + 1);
-  }
+  function refreshAll() { setGeneration(g => g + 1); }
 
   const firstName = userName?.split(' ')[0] || 'Devotee';
 
@@ -361,13 +362,13 @@ export default function HomePage() {
       <BirthdayPopup list={birthdays} onClose={() => setShowBirthdays(false)} />
 
       {/* Hare Krishna banner — Reports for [date] · Activities: [range] */}
-      <SnapshotBanner sessionDate={sessionDate} sessionId={sessionId} onRefresh={refreshAll} />
+      <SnapshotBanner sessionDate={filters.sessionDate} sessionId={filters.sessionId} onRefresh={refreshAll} />
 
-      {/* KPI tiles */}
-      {sessionId && <DashboardKPIs sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
+      {/* KPI tiles — read session directly from filters */}
+      <DashboardKPIs generation={generation} />
 
-      {/* Team Performance grid (was 'Coordinator Performance' label) */}
-      {sessionId && <TeamPerformance sessionId={sessionId} sessionDate={sessionDate} generation={generation} />}
+      {/* Team Performance grid */}
+      <TeamPerformance generation={generation} />
 
       {/* Greeting + session config (compact, below content) */}
       <div className="home-greeting compact">
