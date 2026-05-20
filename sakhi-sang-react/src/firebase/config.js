@@ -8,13 +8,17 @@ import {
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
+// Switched to the original Sakhi-Sang-Attendence Firebase project so the React
+// app shares the same database as the original deployment (devotees, sessions,
+// calling status, users — everything).  Old 'sakhi-sang' project config archived
+// in git history for reference.
 const firebaseConfig = {
-  apiKey: "AIzaSyB8LS1EUZSxpIktwxVVmYd6JZv4gU1Z2ok",
-  authDomain: "sakhi-sang.firebaseapp.com",
-  projectId: "sakhi-sang",
-  storageBucket: "sakhi-sang.firebasestorage.app",
-  messagingSenderId: "394737578227",
-  appId: "1:394737578227:web:897b0aa7c041b0c5dcc786"
+  apiKey: "AIzaSyCxxLIiOy0bGus2NkkSod7_LBVHah5-sz0",
+  authDomain: "sakhi-sang-attendence-tracker.firebaseapp.com",
+  projectId: "sakhi-sang-attendence-tracker",
+  storageBucket: "sakhi-sang-attendence-tracker.firebasestorage.app",
+  messagingSenderId: "975645795932",
+  appId: "1:975645795932:web:10123086717198940b2899"
 };
 
 const app = initializeApp(firebaseConfig);

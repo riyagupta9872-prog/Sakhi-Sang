@@ -1,5 +1,5 @@
 // Sakhi Sang Service Worker — version-bumped on each deploy
-const CACHE = 'sakhi-sang-v3';
+const CACHE = 'sakhi-sang-v4';
 const ASSETS = [
   '/Sakhi-Sang/',
   '/Sakhi-Sang/index.html',
