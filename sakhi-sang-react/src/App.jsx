@@ -8,6 +8,8 @@ import TabNav, { BottomNav } from './components/layout/TabNav';
 import FilterRibbon from './components/layout/FilterRibbon';
 import Toast from './components/common/Toast';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import { AIFloatingButton, AIChatModal } from './components/common/AIAssistant';
+import { useState } from 'react';
 
 import HomePage from './pages/HomePage';
 import DevoteesPage from './pages/DevoteesPage';
@@ -46,6 +48,7 @@ function CurrentTab() {
 function AppShell() {
   const { authState } = useAuth();
   const { activeTab } = useApp();
+  const [aiOpen, setAiOpen] = useState(false);
 
   if (authState === 'loading') {
     return (
@@ -69,6 +72,8 @@ function AppShell() {
         </ErrorBoundary>
       </main>
       <BottomNav />
+      <AIFloatingButton onClick={() => setAiOpen(true)} />
+      <AIChatModal open={aiOpen} onClose={() => setAiOpen(false)} />
       <Toast />
     </div>
   );
