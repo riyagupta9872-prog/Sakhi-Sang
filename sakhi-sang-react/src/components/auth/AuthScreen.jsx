@@ -28,7 +28,12 @@ export default function AuthScreen() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError(''); setLoading(true);
+    setError('');
+    if (mode === 'forgot' && !email.trim()) {
+      setError('Enter your email to receive reset link');
+      return;
+    }
+    setLoading(true);
     try {
       if (mode === 'login') {
         // Store att-seva login intent before auth — picked up by AppContext after auth
@@ -39,13 +44,21 @@ export default function AuthScreen() {
         if (!displayName.trim()) { setError('Please enter your name'); setLoading(false); return; }
         await signup(email, password, displayName.trim());
       } else if (mode === 'forgot') {
-        await sendPasswordResetEmail(auth, email);
+        await sendPasswordResetEmail(auth, email.trim());
         showToast('Password reset email sent!', 'success');
         setMode('login');
       }
     } catch (err) {
       setError(ERR[err.code] || err.message);
     } finally { setLoading(false); }
+  }
+
+  // Reset stale form state when switching modes
+  function switchMode(next) {
+    setMode(next);
+    setError('');
+    setShowPw(false);
+    if (next !== 'signup') setDisplayName('');
   }
 
   return (
@@ -59,13 +72,13 @@ export default function AuthScreen() {
 
         {mode !== 'forgot' && (
           <div className="auth-tabs">
-            <button
+            <button type="button"
               className={`auth-tab${mode === 'login' ? ' active' : ''}`}
-              onClick={() => { setMode('login'); setError(''); }}
+              onClick={() => switchMode('login')}
             >Login</button>
-            <button
+            <button type="button"
               className={`auth-tab${mode === 'signup' ? ' active' : ''}`}
-              onClick={() => { setMode('signup'); setError(''); }}
+              onClick={() => switchMode('signup')}
             >Sign Up</button>
           </div>
         )}
@@ -129,7 +142,7 @@ export default function AuthScreen() {
           </button>
 
           {mode === 'forgot' && (
-            <button type="button" className="auth-back-link" onClick={() => { setMode('login'); setError(''); }}>
+            <button type="button" className="auth-back-link" onClick={() => switchMode('login')}>
               ← Back to Sign In
             </button>
           )}
