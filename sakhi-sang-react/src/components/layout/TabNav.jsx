@@ -23,7 +23,13 @@ function TabDropdown({ tabId, views, userRole, isAttSevaDev, anchorRect, onSelec
 
   useEffect(() => {
     function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
+      if (!ref.current) return;
+      // Click inside the dropdown → menu item's onMouseDown handles it
+      if (ref.current.contains(e.target)) return;
+      // Click on any tab button (current or sibling) → tab's onClick handles the
+      // open/close/switch logic. Closing here would cause a flicker-reopen race.
+      if (e.target.closest('.tab-btn') || e.target.closest('.bnav-btn')) return;
+      onClose();
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
