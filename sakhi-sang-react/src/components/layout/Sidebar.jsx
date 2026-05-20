@@ -9,6 +9,7 @@ import SignupRequests from '../admin/SignupRequests';
 import ClearDataModal from '../admin/ClearDataModal';
 import SessionManagement from '../admin/SessionManagement';
 import PersonalMeetings from '../admin/PersonalMeetings';
+import { ROLE_LABELS } from '../../utils/roles';
 import { MonthlyReports, FYReports, IndividualReports } from '../admin/AggregateReports';
 import { TEAMS } from '../../firebase/config';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -42,7 +43,7 @@ export default function Sidebar({ open, onClose }) {
   function tg(g) { setGroups(prev => ({ ...prev, [g]: !prev[g] })); }
   function close() { onClose(); }
 
-  const roleLabel = { superAdmin: 'Super Admin', teamAdmin: 'Coordinator', serviceDevotee: 'Facilitator' }[userRole] || userRole;
+  const roleLabel = ROLE_LABELS[userRole] || userRole;
   const pic = userDoc?.profilePic;
 
   return (

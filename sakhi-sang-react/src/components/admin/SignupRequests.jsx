@@ -54,7 +54,8 @@ export default function SignupRequests({ open, onClose }) {
               </div>
               <select className="form-select sm" value={selections[r.id]?.role || 'serviceDevotee'} onChange={e => setSel(r.id, 'role', e.target.value)}>
                 <option value="serviceDevotee">Facilitator</option>
-                <option value="teamAdmin">Coordinator</option>
+                <option value="teamAdmin">Team Coordinator</option>
+                <option value="departmentAdmin">Department Admin</option>
                 <option value="superAdmin">Super Admin</option>
               </select>
               <select className="form-select sm" value={selections[r.id]?.team || ''} onChange={e => setSel(r.id, 'team', e.target.value)}>

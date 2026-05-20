@@ -579,33 +579,76 @@ export const DB = {
   async getCallingReport(weekDate) {
     if (!weekDate) return {};
     try {
-    const csSnap = await getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate)));
-    const subSnap = await getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate)));
-    const sessionDate = shiftDate(weekDate, 1);
-    const sessSnap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sessionDate)));
-    const sessionId = sessSnap.empty ? null : sessSnap.docs[0].id;
-    const attSet = new Set();
-    if (sessionId) {
-      const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
-      attSnap.docs.forEach(d => attSet.add(d.data().devotee_id));
-    }
-    const submittedCallers = new Set(subSnap.docs.map(d => d.data().user_name || d.data().userName));
-    const report = {};
-    for (const d of csSnap.docs) {
-      const dat = d.data();
-      const team = dat.team_name || dat.teamName || 'Unknown';
-      const caller = dat.calling_by || dat.callingBy || 'Unknown';
-      if (!submittedCallers.has(caller)) continue;
-      if (!report[team]) report[team] = {};
-      if (!report[team][caller]) report[team][caller] = { called: 0, yes: 0, notCalled: 0, came: 0 };
-      const r = report[team][caller];
-      r.called++;
-      const cs = dat.coming_status || dat.comingStatus;
-      if (cs === 'Yes') r.yes++;
-      if (!cs) r.notCalled++;
-      if (attSet.has(dat.devotee_id)) r.came++;
-    }
-    return report;
+      // Pull everything needed in parallel
+      const [csSnap, subSnap, allDevotees] = await Promise.all([
+        getDocs(query(collection(db, 'callingStatus'), where('week_date', '==', weekDate))),
+        getDocs(query(collection(db, 'callingSubmissions'), where('week_date', '==', weekDate))),
+        this.getDevotees({}),
+      ]);
+
+      // Attendance for the following Sunday (if it exists)
+      const sessionDate = shiftDate(weekDate, 1);
+      const sessSnap = await getDocs(query(collection(db, 'sessions'), where('session_date', '==', sessionDate)));
+      const sessionId = sessSnap.empty ? null : sessSnap.docs[0].id;
+      const attSet = new Set();
+      if (sessionId) {
+        const attSnap = await getDocs(query(collection(db, 'attendanceRecords'), where('session_id', '==', sessionId)));
+        attSnap.docs.forEach(d => attSet.add(d.data().devotee_id));
+      }
+
+      const submittedCallers = new Set(subSnap.docs.map(d => d.data().user_name || d.data().userName));
+
+      // Index calling status by devotee id
+      const csByDev = {};
+      csSnap.docs.forEach(d => {
+        const dat = d.data();
+        const id = dat.devotee_id || dat.devoteeId;
+        if (id) csByDev[id] = dat;
+      });
+
+      // Build report: walk EVERY active devotee (so 'Not Called' is accurate
+      // even when no calling-status doc exists for them this week)
+      const report = {};
+      function ensure(team, caller) {
+        if (!report[team]) report[team] = {};
+        if (!report[team][caller]) {
+          report[team][caller] = {
+            total: 0, called: 0, notCalled: 0,
+            yes: 0, online: 0, festival: 0, notInterested: 0, other: 0,
+            attended: 0,
+            submitted: submittedCallers.has(caller),
+          };
+        }
+        return report[team][caller];
+      }
+
+      allDevotees.forEach(d => {
+        // Skip devotees who shouldn't be in this week's calling list
+        if (d.calling_mode === 'not_interested') return;
+        const team = d.team_name || 'Unknown';
+        const caller = d.calling_by || 'Unassigned';
+        const r = ensure(team, caller);
+        r.total++;
+
+        const cs = csByDev[d.id];
+        const status = cs?.coming_status || cs?.comingStatus || '';
+        const reason = cs?.calling_reason || cs?.callingReason || '';
+        const hasAnyMark = !!(status || reason);
+
+        if (hasAnyMark) {
+          r.called++;
+          if (status === 'Yes') r.yes++;
+          else if (reason === 'online_class')       r.online++;
+          else if (reason === 'festival_calling')   r.festival++;
+          else if (reason === 'not_interested_now') r.notInterested++;
+          else if (reason)                          r.other++;
+        } else {
+          r.notCalled++;
+        }
+        if (attSet.has(d.id)) r.attended++;
+      });
+
+      return report;
     } catch (err) { console.error('getCallingReport:', err); return {}; }
   },
 

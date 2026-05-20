@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { avatarInitials } from '../../utils/helpers';
+import { ROLE_LABELS } from '../../utils/roles';
 import { db } from '../../firebase/config';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import Sidebar from './Sidebar';
@@ -19,9 +20,10 @@ export default function Header() {
 
   // Full weekday name matches original (e.g. 'Wednesday, 20 May 2026')
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const roleLabel = { superAdmin: 'Super Admin', teamAdmin: 'Coordinator', serviceDevotee: 'Facilitator' }[userRole] || userRole;
-  // Show "Team – Role" when team is set and not superAdmin; superAdmin stays as-is
-  const rolePillText = (userTeam && userRole !== 'superAdmin') ? `${userTeam} – ${roleLabel}` : roleLabel;
+  const roleLabel = ROLE_LABELS[userRole] || userRole;
+  // Show "Team – Role" for team-scoped users; admins (super/dept) show role alone
+  const isOrgAdmin = userRole === 'superAdmin' || userRole === 'departmentAdmin';
+  const rolePillText = (userTeam && !isOrgAdmin) ? `${userTeam} – ${roleLabel}` : roleLabel;
   const pic = userDoc?.profilePic;
 
   return (

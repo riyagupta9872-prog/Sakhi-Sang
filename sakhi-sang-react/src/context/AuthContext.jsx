@@ -170,10 +170,11 @@ export function AuthProvider({ children }) {
     setOverrideRole,
     userTeam: userDoc?.teamName || userDoc?.team_name || '',
     userPosition: userDoc?.position || '',
-    isSuper: effectiveRole === 'superAdmin',
-    isTeamAdmin: effectiveRole === 'teamAdmin' || effectiveRole === 'superAdmin',
-    // SuperAdmin always has live access; others need explicit isAttSevaDev flag
-    isAttSevaDev: effectiveRole === 'superAdmin' || !!userDoc?.isAttSevaDev,
+    isSuper: effectiveRole === 'superAdmin' || effectiveRole === 'departmentAdmin',
+    isDeptAdmin: effectiveRole === 'departmentAdmin',
+    isTeamAdmin: effectiveRole === 'teamAdmin' || effectiveRole === 'departmentAdmin' || effectiveRole === 'superAdmin',
+    // SuperAdmin and DepartmentAdmin always have live access; others need explicit isAttSevaDev flag
+    isAttSevaDev: effectiveRole === 'superAdmin' || effectiveRole === 'departmentAdmin' || !!userDoc?.isAttSevaDev,
     signup,
     login,
     logout,

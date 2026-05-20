@@ -3,18 +3,22 @@ import { useApp, TAB_VIEWS } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { createPortal } from 'react-dom';
 
+const ALL_ROLES   = ['superAdmin', 'departmentAdmin', 'teamAdmin', 'serviceDevotee'];
+const COORD_ROLES = ['superAdmin', 'departmentAdmin', 'teamAdmin'];
+const ADMIN_ROLES = ['superAdmin', 'departmentAdmin'];
+
 export const TABS = [
-  { id: 'dashboard',    label: 'Dashboard',    short: 'Home',     icon: '⌂',  roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'devotees',     label: 'Devotees',     short: 'Devotees', icon: '👥', roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'calling',      label: 'Calling',      short: 'Calling',  icon: '📞', roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'attendance',   label: 'Attendance',   short: 'Att.',     icon: '✓',  roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'books',        label: 'Books',        short: 'Books',    icon: '📚', roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'service',      label: 'Service',      short: 'Service',  icon: '🤲', roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'registration', label: 'Registration', short: 'Reg.',     icon: '📋', roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'donation',     label: 'Donation',     short: 'Donation', icon: '💰', roles: ['superAdmin','teamAdmin','serviceDevotee'] },
-  { id: 'care',         label: 'Care',         short: 'Care',     icon: '❤',  roles: ['superAdmin','teamAdmin'] },
-  { id: 'events',       label: 'Events',       short: 'Events',   icon: '📅', roles: ['superAdmin','teamAdmin'] },
-  { id: 'calling-mgmt', label: 'Calling Mgmt', short: 'Mgmt',     icon: '📊', roles: ['superAdmin'] },
+  { id: 'dashboard',    label: 'Dashboard',    short: 'Home',     icon: '⌂',  roles: ALL_ROLES },
+  { id: 'devotees',     label: 'Devotees',     short: 'Devotees', icon: '👥', roles: ALL_ROLES },
+  { id: 'calling',      label: 'Calling',      short: 'Calling',  icon: '📞', roles: ALL_ROLES },
+  { id: 'attendance',   label: 'Attendance',   short: 'Att.',     icon: '✓',  roles: ALL_ROLES },
+  { id: 'books',        label: 'Books',        short: 'Books',    icon: '📚', roles: ALL_ROLES },
+  { id: 'service',      label: 'Service',      short: 'Service',  icon: '🤲', roles: ALL_ROLES },
+  { id: 'registration', label: 'Registration', short: 'Reg.',     icon: '📋', roles: ALL_ROLES },
+  { id: 'donation',     label: 'Donation',     short: 'Donation', icon: '💰', roles: ALL_ROLES },
+  { id: 'care',         label: 'Care',         short: 'Care',     icon: '❤',  roles: COORD_ROLES },
+  { id: 'events',       label: 'Events',       short: 'Events',   icon: '📅', roles: COORD_ROLES },
+  { id: 'calling-mgmt', label: 'Calling Mgmt', short: 'Mgmt',     icon: '📊', roles: ADMIN_ROLES },
 ];
 
 // Dropdown rendered via portal so overflow:hidden on tab-nav doesn't clip it

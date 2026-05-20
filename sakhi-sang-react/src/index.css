@@ -514,6 +514,45 @@ input, select, textarea { font-family: inherit; }
 .hidden { display: none !important; }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
+/* ── Weekly Report — matches original Calling Summary layout ───────────── */
+.weekly-report { padding-top: 4px; }
+.weekly-actions { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.weekly-actions .btn-outline { padding: 9px 16px; font-size: .92rem; font-weight: 700; border-radius: 10px; border-width: 1.5px; }
+.weekly-actions .btn-outline:disabled { opacity: .55; cursor: not-allowed; }
+.weekly-title { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin: 0 0 14px; padding: 0; display: flex; align-items: center; gap: 6px; }
+
+.weekly-table { border-collapse: collapse; width: 100%; font-size: .96rem; }
+.weekly-table thead th {
+  background: linear-gradient(180deg, #f5c518, #d4a900);
+  color: white; font-weight: 700; padding: 12px 14px; text-align: center;
+  border-right: 1px solid rgba(255,255,255,.18);
+  white-space: nowrap;
+}
+.weekly-table thead th:first-child { text-align: left; }
+.weekly-table thead th:last-child { border-right: none; }
+.weekly-table thead .col-yes      { color: #d1fae5; }
+.weekly-table thead .col-online   { color: #dbeafe; }
+.weekly-table thead .col-festival { color: #fde68a; }
+.weekly-table thead .col-ni       { color: #fee2e2; }
+.weekly-table thead .col-not-called { color: #fee2e2; }
+.weekly-table tbody td { padding: 11px 14px; text-align: center; background: #fffde7; border-bottom: 1px solid #fde68a; font-weight: 600; }
+.weekly-table tbody td:first-child { text-align: left; font-weight: 700; }
+.weekly-team-row { cursor: pointer; transition: background .12s; }
+.weekly-team-row:hover td { background: #fff9c4; }
+.weekly-chevron { display: inline-block; width: 14px; color: #b8860b; font-weight: 900; transition: transform .15s; }
+.weekly-team-badge { font-size: .92rem; padding: 4px 12px; font-weight: 700; }
+.weekly-caller-row td { background: white !important; font-size: .9rem; font-weight: 500; }
+.weekly-caller-name { padding-left: 32px !important; color: var(--text); }
+.weekly-caller-indent { display: inline-block; margin-right: 6px; color: var(--text-light); }
+.weekly-not-submitted { margin-left: 6px; color: var(--color-warning); cursor: help; }
+/* Coloured count cells — match original screenshot palette */
+.num-yes        { color: #15803d; }
+.num-called     { color: #15803d; }
+.num-not-called { color: #b91c1c; }
+.num-online     { color: #1d4ed8; }
+.num-festival   { color: #b8860b; }
+.num-ni         { color: #b45309; }
+
 /* Calling enhancements */
 .calling-toolbar { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
 .locked-banner { padding: 8px 14px; border-radius: var(--radius-md); font-size: .82rem; font-weight: 600; margin-bottom: 12px; }

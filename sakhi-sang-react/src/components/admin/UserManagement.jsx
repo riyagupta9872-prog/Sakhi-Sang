@@ -55,7 +55,8 @@ export default function UserManagement({ open, onClose }) {
               </div>
               <select className="form-select sm" value={u.role || ''} onChange={e => saveUser(u.id, { role: e.target.value })}>
                 <option value="serviceDevotee">Facilitator</option>
-                <option value="teamAdmin">Coordinator</option>
+                <option value="teamAdmin">Team Coordinator</option>
+                <option value="departmentAdmin">Department Admin</option>
                 <option value="superAdmin">Super Admin</option>
               </select>
               <select className="form-select sm" value={u.teamName || u.team_name || ''} onChange={e => saveUser(u.id, { teamName: e.target.value })}>

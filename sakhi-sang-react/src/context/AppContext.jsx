@@ -10,7 +10,7 @@ const AppContext = createContext(null);
 export const TAB_VIEWS = {
   calling: [
     { key: 'calls',       label: 'Calls',              roles: ['teamAdmin','serviceDevotee'] },
-    { key: 'team-calling',label: 'Team Calling',       roles: ['teamAdmin','superAdmin'] },
+    { key: 'team-calling',label: 'Team Calling',       roles: ['teamAdmin','departmentAdmin','superAdmin'] },
     { divider: true,      label: 'REPORTS' },
     { key: 'weekly',      label: 'Weekly Report' },
     { key: 'submission',  label: 'Submission Report' },

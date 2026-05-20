@@ -391,24 +391,36 @@ function TeamCallingPanel({ weekDate }) {
   );
 }
 
-// ── Weekly Summary Report ───────────────────────────────────────────────────
+// ── Weekly Report — matches original 'Calling Summary' layout ──────────────
 function WeeklyReport({ weekDate }) {
   const [report, setReport] = useState({});
   const [expanded, setExpanded] = useState({});
   const [loading, setLoading] = useState(false);
-  useEffect(() => { if (weekDate) { setLoading(true); DB.getCallingReport(weekDate).then(r => { setReport(r); setLoading(false); }); } }, [weekDate]);
+
+  useEffect(() => {
+    if (!weekDate) return;
+    setLoading(true);
+    DB.getCallingReport(weekDate).then(r => { setReport(r); setLoading(false); });
+  }, [weekDate]);
+
+  function aggregate(callersObj) {
+    return Object.values(callersObj).reduce((a, s) => ({
+      total: a.total + s.total, called: a.called + s.called, notCalled: a.notCalled + s.notCalled,
+      yes: a.yes + s.yes, online: a.online + s.online, festival: a.festival + s.festival, notInterested: a.notInterested + s.notInterested,
+    }), { total: 0, called: 0, notCalled: 0, yes: 0, online: 0, festival: 0, notInterested: 0 });
+  }
 
   if (loading) return <div className="loading-spinner" />;
-  const teams = Object.entries(report);
-  const totals = teams.reduce((a, [, c]) => {
-    Object.values(c).forEach(s => { a.called += s.called; a.yes += s.yes; a.notCalled += s.notCalled; a.came += s.came; });
-    return a;
-  }, { called:0, yes:0, notCalled:0, came:0 });
+  const teams = Object.entries(report).sort(([a], [b]) => a.localeCompare(b));
 
   function exportExcel() {
-    const rows = [['Team','Coordinator','Called','Confirmed','Not Called','Attended']];
+    const rows = [['Team','Calling By','Total','Called','Not Called','Yes','Online','Festival','NI']];
     teams.forEach(([team, callers]) => {
-      Object.entries(callers).forEach(([caller, s]) => rows.push([team, caller, s.called, s.yes, s.notCalled, s.came]));
+      const ts = aggregate(callers);
+      rows.push([team, '— Team total —', ts.total, ts.called, ts.notCalled, ts.yes, ts.online, ts.festival, ts.notInterested]);
+      Object.entries(callers).forEach(([caller, s]) => {
+        rows.push(['', caller, s.total, s.called, s.notCalled, s.yes, s.online, s.festival, s.notInterested]);
+      });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -417,41 +429,75 @@ function WeeklyReport({ weekDate }) {
   }
 
   return (
-    <div>
-      <div className="section-header">
-        <h4 className="section-title">Weekly Report — {formatDate(weekDate)}</h4>
-        <button className="btn-outline sm" onClick={exportExcel}>⬇ Excel</button>
+    <div className="weekly-report">
+      <div className="weekly-actions">
+        <button className="btn-outline" onClick={exportExcel}>📥 Export</button>
+        <button className="btn-outline" disabled title="Coming soon">📥 Export FY</button>
       </div>
-      {teams.length === 0 && <div className="empty-state">No submitted calling data</div>}
-      <table className="simple-table">
-        <thead><tr><th>Team / Coordinator</th><th>Called</th><th>Confirmed</th><th>Not Called</th><th>Attended</th></tr></thead>
-        <tbody>
-          {teams.map(([team, callers]) => {
-            const ts = Object.values(callers).reduce((a, s) => ({ called: a.called+s.called, yes: a.yes+s.yes, notCalled: a.notCalled+s.notCalled, came: a.came+s.came }), {called:0,yes:0,notCalled:0,came:0});
-            return (
-              <React.Fragment key={team}>
-                <tr className="team-header-row" onClick={() => setExpanded(e => ({ ...e, [team]: !e[team] }))} style={{cursor:'pointer'}}>
-                  <td><strong>{expanded[team] ? '▾' : '▸'} {team}</strong></td>
-                  <td>{ts.called}</td><td>{ts.yes}</td><td>{ts.notCalled}</td><td>{ts.came}</td>
-                </tr>
-                {expanded[team] && Object.entries(callers).map(([caller, s]) => (
-                  <tr key={caller} className="caller-detail-row">
-                    <td className="pl-4">· {caller}</td>
-                    <td>{s.called}</td><td>{s.yes}</td><td>{s.notCalled}</td><td>{s.came}</td>
-                  </tr>
-                ))}
-              </React.Fragment>
-            );
-          })}
-          {teams.length > 0 && (
-            <tr className="grand-total-row">
-              <td><strong>Grand Total</strong></td>
-              <td><strong>{totals.called}</strong></td><td><strong>{totals.yes}</strong></td>
-              <td><strong>{totals.notCalled}</strong></td><td><strong>{totals.came}</strong></td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+
+      <h3 className="weekly-title">📞 Calling Summary — {weekDate ? formatDate(weekDate) : '—'}</h3>
+
+      {teams.length === 0 ? (
+        <div className="empty-state">No calling data for this week yet</div>
+      ) : (
+        <div className="table-scroll">
+          <table className="weekly-table">
+            <thead>
+              <tr>
+                <th>Team / Calling By</th>
+                <th>Total</th>
+                <th>Called</th>
+                <th className="col-not-called">Not Called</th>
+                <th className="col-yes">Yes</th>
+                <th className="col-online">Online</th>
+                <th className="col-festival">Festival</th>
+                <th className="col-ni">NI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teams.map(([team, callers]) => {
+                const ts = aggregate(callers);
+                const isOpen = !!expanded[team];
+                return (
+                  <React.Fragment key={team}>
+                    <tr className="weekly-team-row" onClick={() => setExpanded(s => ({ ...s, [team]: !s[team] }))}>
+                      <td className="weekly-team-name">
+                        <span className="weekly-chevron">{isOpen ? '⌄' : '›'}</span>
+                        <span className="badge badge-team weekly-team-badge">{team}</span>
+                      </td>
+                      <td><strong>{ts.total}</strong></td>
+                      <td className="num-called">{ts.called}</td>
+                      <td className="num-not-called">{ts.notCalled}</td>
+                      <td className="num-yes">{ts.yes}</td>
+                      <td className="num-online">{ts.online}</td>
+                      <td className="num-festival">{ts.festival}</td>
+                      <td className="num-ni">{ts.notInterested}</td>
+                    </tr>
+                    {isOpen && Object.entries(callers)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([caller, s]) => (
+                        <tr key={`${team}-${caller}`} className="weekly-caller-row">
+                          <td className="weekly-caller-name">
+                            <span className="weekly-caller-indent">↳</span>
+                            {caller}
+                            {!s.submitted && <span className="weekly-not-submitted" title="Coordinator hasn't submitted yet">⚠</span>}
+                          </td>
+                          <td>{s.total}</td>
+                          <td className="num-called">{s.called}</td>
+                          <td className="num-not-called">{s.notCalled}</td>
+                          <td className="num-yes">{s.yes}</td>
+                          <td className="num-online">{s.online}</td>
+                          <td className="num-festival">{s.festival}</td>
+                          <td className="num-ni">{s.notInterested}</td>
+                        </tr>
+                      ))}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
